@@ -29,6 +29,9 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
             android:theme="@style/Theme.JarvisApp">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -40,12 +43,14 @@
         <service
             android:name=".service.JarvisForegroundService"
             android:exported="false"
+            android:stopWithTask="false"
             android:foregroundServiceType="microphone" />
 
         <!-- Overlay Service (floating bubble) -->
         <service
             android:name=".service.OverlayService"
-            android:exported="false" />
+            android:exported="false"
+            android:stopWithTask="false" />
 
         <!-- Accessibility Service (phone control) -->
         <service

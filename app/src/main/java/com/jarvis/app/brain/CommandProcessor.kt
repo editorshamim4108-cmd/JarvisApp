@@ -62,6 +62,10 @@ class CommandProcessor(private val context: Context) {
         "স্পটিফাই" to "com.spotify.music",
     )
 
+    suspend fun acknowledge(text: String) {
+        reply(text)
+    }
+
     suspend fun process(rawInput: String) {
         val input = rawInput.trim()
         if (input.isEmpty()) return
@@ -80,7 +84,7 @@ class CommandProcessor(private val context: Context) {
 
                 // 2. Wake word acknowledgment
                 isJustWakeWord(lower) -> {
-                    reply("জি Boss, বলুন?")
+                    reply("জি Boss, আমি আছি। বলুন কী করব?")
                 }
 
                 // 3. Presence check

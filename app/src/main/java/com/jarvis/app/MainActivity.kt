@@ -5,7 +5,9 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -115,13 +117,35 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         settings = SettingsManager(this)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        }
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
         requestPermissions()
+        startJarvisServices()
+        requestBatteryOptimizationExemption()
 
         setContent {
             JarvisTheme {
                 JarvisMainScreen()
             }
         }
+    }
+
+    private fun requestBatteryOptimizationExemption() {
+        try {
+            val pm = getSystemService(POWER_SERVICE) as PowerManager
+            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                @Suppress("BatteryLife")
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = android.net.Uri.parse("package:$packageName")
+                }
+                startActivity(intent)
+            }
+        } catch (_: Exception) {}
     }
 
     private fun requestPermissions() {
@@ -156,10 +180,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (settings.isFirstLaunch()) {
-            settings.markFirstLaunchDone()
+        if (JarvisForegroundService.instance == null) {
             startJarvisServices()
         }
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -413,15 +441,25 @@ class MainActivity : ComponentActivity() {
         val transition = rememberInfiniteTransition(label = "orb")
         val scale by transition.animateFloat(
             initialValue = if (isActive) 1f else 0.97f,
-            targetValue = if (isActive) 1.08f else 1.02f,
+            targetValue = if (isActive) 1.12f else 1.02f,
             animationSpec = infiniteRepeatable(
-                animation = tween(if (isActive) 1800 else 3200, easing = LinearEasing),
+                animation = tween(if (isActive) 800 else 3200, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse
             ),
             label = "orbScale"
         )
 
-        val orbSize = 180.dp
+        val glowAlpha by transition.animateFloat(
+            initialValue = if (isActive) 0.3f else 0.1f,
+            targetValue = if (isActive) 0.8f else 0.3f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(if (isActive) 600 else 2000, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "glowAlpha"
+        )
+
+        val orbSize = 220.dp
 
         Box(
             modifier = Modifier
@@ -429,28 +467,37 @@ class MainActivity : ComponentActivity() {
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
-            // Dashed ring
+            // Outer glow ring (blinks)
             Canvas(modifier = Modifier.fillMaxSize()) {
                 drawCircle(
-                    color = CyberCyan.copy(alpha = 0.3f),
+                    color = if (isActive) StatusGreen.copy(alpha = glowAlpha)
+                            else CyberCyan.copy(alpha = glowAlpha),
+                    radius = size.minDimension / 2
+                )
+            }
+
+            // Middle ring
+            Canvas(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+                drawCircle(
+                    color = CyberCyan.copy(alpha = 0.25f),
                     radius = size.minDimension / 2,
                     style = Stroke(width = 2f)
                 )
             }
 
             // Inner ring
-            Canvas(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+            Canvas(modifier = Modifier.fillMaxSize().padding(20.dp)) {
                 drawCircle(
                     color = NeonPurple.copy(alpha = 0.3f),
                     radius = size.minDimension / 2,
-                    style = Stroke(width = 1f)
+                    style = Stroke(width = 1.5f)
                 )
             }
 
-            // Orb
+            // Orb core
             Box(
                 modifier = Modifier
-                    .size(orbSize * 0.7f * scale)
+                    .size(orbSize * 0.6f * scale)
                     .clip(CircleShape)
                     .background(
                         Brush.radialGradient(
@@ -463,8 +510,8 @@ class MainActivity : ComponentActivity() {
                     .drawBehind {
                         if (isActive) {
                             drawCircle(
-                                color = CyberCyan.copy(alpha = 0.3f),
-                                radius = size.minDimension / 2 + 20f
+                                color = CyberCyan.copy(alpha = 0.4f),
+                                radius = size.minDimension / 2 + 24f
                             )
                         }
                     },
@@ -474,7 +521,7 @@ class MainActivity : ComponentActivity() {
                     Icons.Default.Mic,
                     contentDescription = "Microphone",
                     tint = Color.White,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(48.dp)
                 )
             }
         }
