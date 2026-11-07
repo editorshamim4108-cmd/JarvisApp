@@ -360,7 +360,7 @@ class CommandProcessor(private val context: Context) {
         }
     }
 
-    private fun handleVolume(lower: String) {
+    private suspend fun handleVolume(lower: String) {
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val current = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
         val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
@@ -533,7 +533,7 @@ class CommandProcessor(private val context: Context) {
         reply("ঠিক আছে Boss, রিমাইন্ডার মুছে দিয়েছি।")
     }
 
-    private fun handleNavigation(lower: String) {
+    private suspend fun handleNavigation(lower: String) {
         val service = JarvisAccessibilityService.instance
         when {
             lower.contains("ব্যাক") || lower.contains("back") -> {
@@ -559,7 +559,7 @@ class CommandProcessor(private val context: Context) {
         }
     }
 
-    private fun handleTypeText(input: String, lower: String) {
+    private suspend fun handleTypeText(input: String, lower: String) {
         val patterns = listOf("লিখো ", "লেখো ", "টাইপ করো ", "টাইপ কর ", "type ")
         var textToType = input
         for (p in patterns) {
@@ -579,7 +579,7 @@ class CommandProcessor(private val context: Context) {
         }
     }
 
-    private fun handleClick(input: String, lower: String) {
+    private suspend fun handleClick(input: String, lower: String) {
         val patterns = listOf("ক্লিক করো ", "ক্লিক কর ", "ট্যাপ করো ", "ট্যাপ কর ", "চাপো ", "press ", "click ", "tap ")
         var target = input
         for (p in patterns) {
