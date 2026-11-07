@@ -9,4 +9,5 @@
     <color name="surface_dark">#FF131524</color>
     <color name="text_white">#FFFFFFFF</color>
     <color name="text_gray">#FF9CA3AF</color>
+    <color name="jarvis_bg">#FF0A0E1A</color>
 </resources>
