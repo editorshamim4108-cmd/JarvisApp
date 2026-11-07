@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="neon_purple">#FFB026FF</color>
+    <color name="electric_blue">#FF0066FF</color>
+    <color name="cyber_cyan">#FF00F0FF</color>
+    <color name="status_green">#FF00FF9D</color>
+    <color name="bg_black">#FF050508</color>
+    <color name="panel_dark">#FF0D0E17</color>
+    <color name="surface_dark">#FF131524</color>
+    <color name="text_white">#FFFFFFFF</color>
+    <color name="text_gray">#FF9CA3AF</color>
+</resources>
