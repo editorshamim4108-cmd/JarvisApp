@@ -3,13 +3,16 @@ package com.jarvis.app.brain
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
+import android.telecom.TelecomManager
 import android.util.Log
 import com.jarvis.app.data.AppDatabase
 import com.jarvis.app.data.ConversationMessage
 import com.jarvis.app.data.Reminder
 import com.jarvis.app.data.ReminderManager
+import com.jarvis.app.receiver.PhoneCallReceiver
 import com.jarvis.app.service.JarvisAccessibilityService
 import com.jarvis.app.service.JarvisForegroundService
+import com.jarvis.app.service.JarvisNotificationListener
 import com.jarvis.app.service.OverlayService
 import com.jarvis.app.settings.SettingsManager
 import com.jarvis.app.voice.VoiceEngine
@@ -104,6 +107,13 @@ class CommandProcessor(private val context: Context) {
                 }
                 isJustWakeWord(lower) -> reply("জি Boss, আমি আছি। বলুন কী করব?")
                 isPresenceCheck(lower) -> reply("জি Boss, আমি এখানে আছি।")
+
+                // ★ CALL: answer or reject incoming call
+                isCallAnswerCommand(lower) -> handleAnswerCall()
+                isCallRejectCommand(lower) -> handleRejectCall()
+
+                // ★ READ NOTIFICATION: "মেসেজ পড়ো", "কী লিখেছে"
+                isReadNotificationCommand(lower) -> handleReadLastNotification()
 
                 // ★ COMPOUND: "YouTube ওপেন করে গান প্লে করো" or "WhatsApp খুলে মেসেজ পাঠাও"
                 isCompoundCommand(lower) -> handleCompoundCommand(input, lower)
@@ -233,6 +243,21 @@ class CommandProcessor(private val context: Context) {
     private fun isContactSaveCommand(l: String) =
         (l.contains("কন্টাক্ট") || l.contains("contact") || l.contains("নাম্বার")) &&
                 (l.contains("সেভ") || l.contains("save") || l.contains("অ্যাড") || l.contains("add"))
+
+    private fun isCallAnswerCommand(l: String) =
+        PhoneCallReceiver.isRinging &&
+                (l.contains("ধরো") || l.contains("রিসিভ") || l.contains("answer") ||
+                 l.contains("pick up") || l.contains("উঠাও") || l.contains("ধর"))
+
+    private fun isCallRejectCommand(l: String) =
+        PhoneCallReceiver.isRinging &&
+                (l.contains("কাটো") || l.contains("কেটে দাও") || l.contains("reject") ||
+                 l.contains("decline") || l.contains("রিজেক্ট") || l.contains("কাট"))
+
+    private fun isReadNotificationCommand(l: String) =
+        l.contains("মেসেজ পড়ো") || l.contains("কী লিখেছে") || l.contains("read message") ||
+                l.contains("কী বলেছে") || l.contains("মেসেজটা কী") || l.contains("কে মেসেজ দিয়েছে") ||
+                l.contains("নোটিফিকেশন পড়ো") || l.contains("last message")
 
     private fun isLockCommand(l: String) =
         l.contains("লক কর") || l.contains("lock") || l.contains("ফোন লক")
@@ -686,6 +711,54 @@ class CommandProcessor(private val context: Context) {
         aiBrain.apiKey = settings.getAiApiKey()
         val screen = JarvisAccessibilityService.currentScreenText
         reply(aiBrain.ask(input, screen, settings.getLanguage()))
+    }
+
+    // ===================== CALL HANDLING =====================
+
+    @Suppress("DEPRECATION")
+    private suspend fun handleAnswerCall() {
+        try {
+            val tm = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+            tm.acceptRingingCall()
+            reply("Boss, ফোন ধরলাম!")
+        } catch (e: Exception) {
+            Log.e(TAG, "Answer call failed", e)
+            reply("Boss, ফোন ধরতে পারলাম না। নিজে ধরুন।")
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private suspend fun handleRejectCall() {
+        try {
+            val tm = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+            tm.endCall()
+            reply("Boss, ফোন কেটে দিয়েছি!")
+        } catch (e: Exception) {
+            Log.e(TAG, "Reject call failed", e)
+            reply("Boss, ফোন কাটতে পারলাম না।")
+        }
+    }
+
+    suspend fun announceIncomingCall(name: String, number: String) {
+        val display = if (name != number && name.isNotBlank()) "$name ($number)" else number
+        reply("Boss, $display ফোন করছে! ধরবো নাকি কাটবো?")
+    }
+
+    suspend fun announceNotification(app: String, sender: String, message: String) {
+        val short = if (message.length > 80) message.take(80) + "..." else message
+        reply("Boss, $app এ $sender মেসেজ দিয়েছে: $short")
+    }
+
+    private suspend fun handleReadLastNotification() {
+        val sender = JarvisNotificationListener.lastSender
+        val message = JarvisNotificationListener.lastMessage
+        val app = JarvisNotificationListener.lastApp
+
+        if (sender != null && message != null) {
+            reply("Boss, শেষ মেসেজ — $app এ $sender লিখেছে: $message")
+        } else {
+            reply("Boss, কোনো নতুন মেসেজ নেই।")
+        }
     }
 
     // ===================== UTILITIES =====================

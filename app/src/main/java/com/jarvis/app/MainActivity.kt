@@ -854,15 +854,29 @@ class MainActivity : ComponentActivity() {
                         }
                         PermissionRow(
                             "Phone/Contacts",
-                            "কল ও কন্টাক্ট",
+                            "কল ধরা/কাটা ও কন্টাক্ট",
                             checkSelfPermission(Manifest.permission.READ_CONTACTS) ==
+                                android.content.pm.PackageManager.PERMISSION_GRANTED &&
+                            checkSelfPermission(Manifest.permission.READ_PHONE_STATE) ==
                                 android.content.pm.PackageManager.PERMISSION_GRANTED
                         ) {
                             permissionLauncher.launch(arrayOf(
                                 Manifest.permission.READ_CONTACTS,
                                 Manifest.permission.WRITE_CONTACTS,
-                                Manifest.permission.CALL_PHONE
+                                Manifest.permission.CALL_PHONE,
+                                Manifest.permission.READ_PHONE_STATE,
+                                Manifest.permission.READ_CALL_LOG,
+                                Manifest.permission.ANSWER_PHONE_CALLS
                             ))
+                        }
+                        PermissionRow(
+                            "Notification Access",
+                            "মেসেজ পড়া (WhatsApp, SMS)",
+                            androidx.core.app.NotificationManagerCompat
+                                .getEnabledListenerPackages(this@MainActivity)
+                                .contains(packageName)
+                        ) {
+                            startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(

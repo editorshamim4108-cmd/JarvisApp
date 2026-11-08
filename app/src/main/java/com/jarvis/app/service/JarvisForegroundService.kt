@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.media.AudioManager
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
@@ -34,6 +35,8 @@ class JarvisForegroundService : Service() {
     private var safetyTimeoutJob: Job? = null
     private var processingJob: Job? = null
     private var watchdogJob: Job? = null
+    private var wasMusicMuted = false
+    private var wasSystemMuted = false
     private lateinit var settings: SettingsManager
     private lateinit var commandProcessor: CommandProcessor
 
@@ -65,6 +68,17 @@ class JarvisForegroundService : Service() {
                     showOverlay()
                 }
                 processCommand(text)
+            }
+            ACTION_INCOMING_CALL -> {
+                val name = intent.getStringExtra("caller_name") ?: "Unknown"
+                val number = intent.getStringExtra("caller_number") ?: ""
+                announceIncomingCall(name, number)
+            }
+            ACTION_NOTIFICATION -> {
+                val app = intent.getStringExtra("app_name") ?: ""
+                val sender = intent.getStringExtra("sender") ?: ""
+                val message = intent.getStringExtra("message") ?: ""
+                announceNotification(app, sender, message)
             }
         }
         return START_STICKY
@@ -326,10 +340,20 @@ class JarvisForegroundService : Service() {
                         putExtra("android.speech.extras.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 5000L)
                     }
                 }
-                speechRecognizer?.startListening(intent)
+                if (currentListenMode == ListenMode.WAKE_WORD) {
+                    muteRecognizerBeep()
+                    speechRecognizer?.startListening(intent)
+                    scope.launch {
+                        delay(500)
+                        unmuteRecognizerBeep()
+                    }
+                } else {
+                    speechRecognizer?.startListening(intent)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to start recognizer", e)
                 isListening = false
+                unmuteRecognizerBeep()
                 scope.launch {
                     delay(2000)
                     restartCurrentMode()
@@ -449,6 +473,40 @@ class JarvisForegroundService : Service() {
         try { startService(intent) } catch (_: Exception) {}
     }
 
+    private fun announceIncomingCall(name: String, number: String) {
+        if (currentState == JarvisState.PROCESSING) return
+        scope.launch {
+            showOverlay()
+            commandProcessor.announceIncomingCall(name, number)
+            switchToCommandMode()
+        }
+    }
+
+    private fun announceNotification(app: String, sender: String, message: String) {
+        if (currentState == JarvisState.PROCESSING) return
+        scope.launch {
+            commandProcessor.announceNotification(app, sender, message)
+        }
+    }
+
+    private fun muteRecognizerBeep() {
+        try {
+            val am = getSystemService(AUDIO_SERVICE) as AudioManager
+            wasMusicMuted = am.isStreamMute(AudioManager.STREAM_MUSIC)
+            wasSystemMuted = am.isStreamMute(AudioManager.STREAM_SYSTEM)
+            if (!wasMusicMuted) am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
+            if (!wasSystemMuted) am.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_MUTE, 0)
+        } catch (_: Exception) {}
+    }
+
+    private fun unmuteRecognizerBeep() {
+        try {
+            val am = getSystemService(AUDIO_SERVICE) as AudioManager
+            if (!wasMusicMuted) am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
+            if (!wasSystemMuted) am.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_UNMUTE, 0)
+        } catch (_: Exception) {}
+    }
+
     fun stopSpeechRecognition() {
         goToStandby()
     }
@@ -480,6 +538,8 @@ class JarvisForegroundService : Service() {
         const val ACTION_START_LISTENING = "com.jarvis.app.START_LISTENING"
         const val ACTION_STOP_LISTENING = "com.jarvis.app.STOP_LISTENING"
         const val ACTION_PROCESS_TEXT = "com.jarvis.app.PROCESS_TEXT"
+        const val ACTION_INCOMING_CALL = "com.jarvis.app.INCOMING_CALL"
+        const val ACTION_NOTIFICATION = "com.jarvis.app.NOTIFICATION"
         const val EXTRA_TEXT = "extra_text"
 
         var instance: JarvisForegroundService? = null
