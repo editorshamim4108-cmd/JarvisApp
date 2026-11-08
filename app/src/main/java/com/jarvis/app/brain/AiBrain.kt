@@ -14,15 +14,15 @@ import java.util.concurrent.TimeUnit
 class AiBrain {
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .writeTimeout(8, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(10, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
     private val chatHistory = mutableListOf<Pair<String, String>>()
 
-    private val models = listOf("mistral", "openai", "llama", "deepseek")
+    private val models = listOf("openai", "openai-fast")
 
     suspend fun ask(userInput: String, screenContext: String, locale: String): String {
         return withContext(Dispatchers.IO) {
@@ -35,10 +35,6 @@ class AiBrain {
             for (model in models) {
                 response = tryPollinationsPost(model, messages)
                 if (response != null) break
-            }
-
-            if (response == null) {
-                response = tryPollinationsGet(systemPrompt, userInput)
             }
 
             if (response != null) {
@@ -116,54 +112,39 @@ class AiBrain {
                 .build()
 
             val response = client.newCall(request).execute()
-            when {
-                response.isSuccessful -> {
-                    val bodyStr = response.body?.string() ?: ""
-                    try {
-                        val json = JSONObject(bodyStr)
-                        json.optJSONArray("choices")
-                            ?.optJSONObject(0)
-                            ?.optJSONObject("message")
-                            ?.optString("content", "")
-                            ?.trim()
-                            ?.ifEmpty { null }
-                    } catch (e: Exception) {
-                        bodyStr.trim().ifEmpty { null }
-                    }
-                }
-                response.code == 402 || response.code == 429 -> {
-                    Log.w(TAG, "Rate limited ($model): ${response.code}")
-                    null
-                }
-                else -> {
-                    Log.e(TAG, "Error ($model): ${response.code}")
-                    null
-                }
+            val bodyStr = response.body?.string() ?: ""
+
+            if (!response.isSuccessful) {
+                Log.e(TAG, "Error ($model): ${response.code} body=${bodyStr.take(200)}")
+                return null
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Exception ($model)", e)
-            null
-        }
-    }
 
-    private fun tryPollinationsGet(systemPrompt: String, userInput: String): String? {
-        return try {
-            val query = java.net.URLEncoder.encode(userInput, "UTF-8")
-            val system = java.net.URLEncoder.encode(systemPrompt.take(500), "UTF-8")
-            val request = Request.Builder()
-                .url("https://text.pollinations.ai/$query?system=$system")
-                .get()
-                .build()
+            if (bodyStr.contains("reached its budget", ignoreCase = true) ||
+                bodyStr.contains("rate limit", ignoreCase = true)) {
+                Log.w(TAG, "Budget/rate error ($model): ${bodyStr.take(200)}")
+                return null
+            }
 
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful) {
-                response.body?.string()?.trim()?.ifEmpty { null }
-            } else {
-                Log.e(TAG, "GET error: ${response.code}")
+            try {
+                val json = JSONObject(bodyStr)
+                val content = json.optJSONArray("choices")
+                    ?.optJSONObject(0)
+                    ?.optJSONObject("message")
+                    ?.optString("content", "")
+                    ?.trim()
+                    ?.ifEmpty { null }
+
+                if (content != null && content.contains("reached its budget", ignoreCase = true)) {
+                    Log.w(TAG, "Budget error in content ($model)")
+                    return null
+                }
+                content
+            } catch (e: Exception) {
+                Log.e(TAG, "Parse error ($model)", e)
                 null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "GET exception", e)
+            Log.e(TAG, "Exception ($model)", e)
             null
         }
     }
