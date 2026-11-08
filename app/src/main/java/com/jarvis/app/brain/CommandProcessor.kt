@@ -1,8 +1,10 @@
 package com.jarvis.app.brain
 
+import android.content.ContentProviderOperation
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
+import android.provider.ContactsContract
 import android.telecom.TelecomManager
 import android.util.Log
 import com.jarvis.app.data.AppDatabase
@@ -240,9 +242,14 @@ class CommandProcessor(private val context: Context) {
     private fun isReminderAck(l: String) =
         l == "ঠিক আছে" || l == "ok" || l == "okay" || l == "done" || l == "হয়ে গেছে"
 
-    private fun isContactSaveCommand(l: String) =
-        (l.contains("কন্টাক্ট") || l.contains("contact") || l.contains("নাম্বার")) &&
-                (l.contains("সেভ") || l.contains("save") || l.contains("অ্যাড") || l.contains("add"))
+    private fun isContactSaveCommand(l: String): Boolean {
+        val hasNumber = l.contains("কন্টাক্ট") || l.contains("contact") || l.contains("নাম্বার") || l.contains("নম্বর")
+        val hasSave = l.contains("সেভ") || l.contains("save") || l.contains("অ্যাড") || l.contains("add") || l.contains("রাখো") || l.contains("রাখ")
+        if (hasNumber && hasSave) return true
+        val hasCall = l.contains("ফোন দিল") || l.contains("ফোন দিয়েছ") || l.contains("কল এসেছ") ||
+                l.contains("কল দিয়েছ") || l.contains("last call") || l.contains("এইমাত্র কল")
+        return hasCall && hasSave
+    }
 
     private fun isCallAnswerCommand(l: String) =
         PhoneCallReceiver.isRinging &&
@@ -307,13 +314,15 @@ class CommandProcessor(private val context: Context) {
             actionLower.contains("বাজাও") || actionLower.contains("চালাও") -> {
                 val query = extractPlayQuery(actionPart)
                 if (query.isNotEmpty()) {
+                    updateOverlay("\"$query\" সার্চ করছি...")
                     performAppSearch(query)
                     delay(2000)
+                    updateOverlay("\"$query\" প্লে করছি...")
                     val svc = JarvisAccessibilityService.instance
                     if (svc?.performClickOnText(query) == true || svc?.clickFirstClickableItem() == true) {
-                        reply("Boss, $query প্লে করছি!")
+                        reply("Boss, টাস্ক কমপ্লিট! $cleanAppName খুলেছি → \"$query\" সার্চ করেছি → প্লে করছি!")
                     } else {
-                        reply("Boss, $query সার্চ করেছি। যেটা চান ট্যাপ করুন।")
+                        reply("Boss, $cleanAppName খুলেছি → \"$query\" সার্চ করেছি। যেটা চান ট্যাপ করুন।")
                     }
                 } else {
                     reply("Boss, $cleanAppName খুলেছি। কী প্লে করব বলুন!")
@@ -454,12 +463,14 @@ class CommandProcessor(private val context: Context) {
             return
         }
 
+        updateOverlay("সার্চ বার খুলছি...")
         svc.clickSearchField()
         delay(1200)
+        updateOverlay("\"$contact\" টাইপ করছি...")
         svc.performTypeText(contact)
         delay(2000)
 
-        // Try clicking contact, with retry
+        updateOverlay("\"$contact\" খুঁজছি...")
         var found = svc.performClickOnText(contact)
         if (!found) {
             delay(1000)
@@ -469,10 +480,12 @@ class CommandProcessor(private val context: Context) {
         if (found) {
             delay(2000)
             if (message.isNotEmpty()) {
+                updateOverlay("মেসেজ লিখছি...")
                 svc.tapEditFieldAndType(message)
                 delay(500)
+                updateOverlay("সেন্ড করছি...")
                 svc.clickSendButton()
-                reply("Boss, $contact কে \"$message\" পাঠিয়ে দিয়েছি!")
+                reply("Boss, টাস্ক কমপ্লিট! $contact খুঁজেছি → চ্যাটে ঢুকেছি → \"$message\" পাঠিয়ে দিয়েছি!")
             } else {
                 reply("Boss, $contact এর চ্যাটে ঢুকেছি। কী লিখব বলুন!")
             }
@@ -518,10 +531,13 @@ class CommandProcessor(private val context: Context) {
         val message = contactAndMsg.second
 
         if (contact.isNotEmpty()) {
+            updateOverlay("সার্চ বার খুলছি...")
             svc.clickSearchField()
             delay(1200)
+            updateOverlay("\"$contact\" টাইপ করছি...")
             svc.performTypeText(contact)
             delay(2000)
+            updateOverlay("\"$contact\" খুঁজছি...")
             var found = svc.performClickOnText(contact)
             if (!found) {
                 delay(1000)
@@ -530,10 +546,12 @@ class CommandProcessor(private val context: Context) {
             if (found) {
                 delay(2000)
                 if (message.isNotEmpty()) {
+                    updateOverlay("মেসেজ লিখছি...")
                     svc.tapEditFieldAndType(message)
                     delay(500)
+                    updateOverlay("সেন্ড করছি...")
                     svc.clickSendButton()
-                    reply("Boss, $contact কে \"$message\" পাঠিয়েছি!")
+                    reply("Boss, টাস্ক কমপ্লিট! $contact খুঁজেছি → চ্যাটে ঢুকেছি → \"$message\" পাঠিয়েছি!")
                 } else {
                     reply("Boss, $contact এর চ্যাটে ঢুকেছি। কী লিখব?")
                 }
@@ -707,14 +725,96 @@ class CommandProcessor(private val context: Context) {
     }
 
     private suspend fun handleContactSave(input: String, lower: String) {
-        val numberRegex = Regex("[+]?[0-9\\s\\-]{7,15}")
-        var number = numberRegex.find(input)?.value?.replace(Regex("[\\s\\-]"), "")
-        if (number == null) {
-            number = numberRegex.find(JarvisAccessibilityService.currentScreenText)?.value?.replace(Regex("[\\s\\-]"), "")
+        val fromCall = lower.contains("ফোন দিল") || lower.contains("ফোন দিয়েছ") ||
+                lower.contains("কল এসেছ") || lower.contains("কল দিয়েছ") ||
+                lower.contains("last call") || lower.contains("এইমাত্র")
+
+        var number: String? = null
+        if (fromCall && PhoneCallReceiver.pendingNumber != null) {
+            number = PhoneCallReceiver.pendingNumber
         }
-        if (number == null) { reply("Boss, নাম্বার বলুন।"); return }
-        reply("নাম্বার পেয়েছি: $number। কন্টাক্টের নাম বলুন Boss।")
-        pendingContactNumber = number
+        if (number == null) {
+            val numberRegex = Regex("[+]?[0-9\\s\\-]{7,15}")
+            number = numberRegex.find(input)?.value?.replace(Regex("[\\s\\-]"), "")
+        }
+        if (number == null) {
+            number = pendingContactNumber
+        }
+        if (number == null) {
+            reply("Boss, কোন নম্বর সেভ করব? নম্বরটা বলুন অথবা কল আসার পর বলুন।")
+            return
+        }
+
+        val name = extractContactName(input, lower)
+        if (name.isNotEmpty()) {
+            updateOverlay("$number সেভ করছি...")
+            if (saveContactToPhone(name, number)) {
+                pendingContactNumber = null
+                reply("Boss, টাস্ক কমপ্লিট! $number কে \"$name\" নামে কন্টাক্টে সেভ করে দিয়েছি!")
+            } else {
+                reply("Boss, কন্টাক্ট সেভ করতে পারলাম না। Contacts permission চেক করুন।")
+            }
+        } else {
+            pendingContactNumber = number
+            reply("Boss, নম্বর পেয়েছি: $number। কী নামে সেভ করব বলুন!")
+        }
+    }
+
+    private fun extractContactName(input: String, lower: String): String {
+        val nameIdx = lower.indexOf(" নামে ")
+        if (nameIdx > 0) {
+            val before = input.substring(0, nameIdx).trim()
+            val words = before.split(" ")
+            val skip = setOf("এই", "ওই", "তার", "যে", "নাম্বারটা", "নম্বরটা", "নাম্বার",
+                "নম্বর", "ফোন", "দিল", "দিয়েছিল", "কল", "এসেছিল", "সেটা", "এটা",
+                "ওটা", "এখন", "এইমাত্র", "আমাকে", "তুমি", "জার্ভিস")
+            val nameWords = words.filter { it.lowercase() !in skip && it.length > 1 }
+            if (nameWords.isNotEmpty()) return nameWords.joinToString(" ")
+        }
+        val asIdx = lower.indexOf("as ")
+        if (asIdx > 0) {
+            val after = input.substring(asIdx + 3).trim()
+                .replace(Regex("(?i)(নামে|name|save|সেভ)"), "").trim()
+            if (after.isNotEmpty()) return after
+        }
+        return ""
+    }
+
+    private suspend fun saveContactToPhone(name: String, number: String): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val ops = ArrayList<ContentProviderOperation>()
+                ops.add(
+                    ContentProviderOperation.newInsert(ContactsContract.RawContacts.CONTENT_URI)
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, null)
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, null)
+                        .build()
+                )
+                ops.add(
+                    ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                        .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                        .withValue(ContactsContract.Data.MIMETYPE,
+                            ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, name)
+                        .build()
+                )
+                ops.add(
+                    ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                        .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                        .withValue(ContactsContract.Data.MIMETYPE,
+                            ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, number)
+                        .withValue(ContactsContract.CommonDataKinds.Phone.TYPE,
+                            ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
+                        .build()
+                )
+                context.contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "Save contact failed", e)
+                false
+            }
+        }
     }
 
     private suspend fun handleAiQuestion(input: String) {
