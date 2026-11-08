@@ -631,7 +631,8 @@ class CommandProcessor(private val context: Context) {
     private suspend fun handleAiQuestion(input: String) {
         updateOverlay("Boss এর জন্য উত্তর আনছি...")
 
-        aiBrain.claudeApiKey = settings.getClaudeApiKey()
+        aiBrain.provider = settings.getAiProvider()
+        aiBrain.apiKey = settings.getAiApiKey()
         val screenContext = JarvisAccessibilityService.currentScreenText
         val response = aiBrain.ask(input, screenContext, settings.getLanguage())
 

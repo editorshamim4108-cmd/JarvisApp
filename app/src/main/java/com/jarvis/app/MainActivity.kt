@@ -645,7 +645,8 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun SettingsBottomSheet(onDismiss: () -> Unit) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        var claudeKey by remember { mutableStateOf(settings.getClaudeApiKey()) }
+        var selectedProvider by remember { mutableStateOf(settings.getAiProvider()) }
+        var aiApiKey by remember { mutableStateOf(settings.getAiApiKey()) }
         var key1 by remember { mutableStateOf(settings.getKey1()) }
         var key2 by remember { mutableStateOf(settings.getKey2()) }
         var speed by remember { mutableFloatStateOf(settings.getSpeed()) }
@@ -656,7 +657,8 @@ class MainActivity : ComponentActivity() {
         ModalBottomSheet(
             onDismissRequest = {
                 // Save on dismiss
-                settings.setClaudeApiKey(claudeKey)
+                settings.setAiProvider(selectedProvider)
+                settings.setAiApiKey(aiApiKey)
                 settings.setKey1(key1)
                 settings.setKey2(key2)
                 settings.setSpeed(speed)
@@ -682,23 +684,65 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                // AI Brain
+                // AI Provider
                 item {
-                    SettingsCard("AI Brain (Claude API)") {
-                        Text(
-                            if (claudeKey.isNotBlank()) "Claude Haiku — Active" else "Free AI (Pollinations)",
-                            fontSize = 10.sp,
-                            color = if (claudeKey.isNotBlank()) StatusGreen else CyberCyan,
-                            fontFamily = FontFamily.Monospace
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        SettingsTextField("Claude API Key (console.anthropic.com)", claudeKey) { claudeKey = it }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            "Key দিলে Claude AI ব্যবহার হবে, না দিলে Free AI চলবে",
-                            fontSize = 10.sp,
-                            color = TextGray
-                        )
+                    SettingsCard("AI Brain") {
+                        val providers = SettingsManager.AiProvider.entries
+                        val currentProvider = try {
+                            SettingsManager.AiProvider.valueOf(selectedProvider)
+                        } catch (_: Exception) {
+                            SettingsManager.AiProvider.FREE
+                        }
+
+                        providers.forEach { p ->
+                            val isSelected = p.name == selectedProvider
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 3.dp)
+                                    .background(
+                                        if (isSelected) NeonPurple.copy(alpha = 0.15f)
+                                        else Color.Transparent,
+                                        RoundedCornerShape(10.dp)
+                                    )
+                                    .border(
+                                        if (isSelected) 1.dp else 0.5.dp,
+                                        if (isSelected) CyberCyan else Color(0xFF333333),
+                                        RoundedCornerShape(10.dp)
+                                    )
+                                    .clickable { selectedProvider = p.name }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        p.label,
+                                        fontSize = 12.sp,
+                                        color = if (isSelected) Color.White else TextGray,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                    Text(p.hint, fontSize = 9.sp, color = TextGray)
+                                }
+                                if (isSelected) {
+                                    Text("✓", color = StatusGreen, fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        if (currentProvider != SettingsManager.AiProvider.FREE) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            SettingsTextField("API Key", aiApiKey) { aiApiKey = it }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                if (aiApiKey.isNotBlank()) "✓ Key saved — ${currentProvider.label} active"
+                                else "⚠ Key দিন, না হলে Free AI চলবে",
+                                fontSize = 10.sp,
+                                color = if (aiApiKey.isNotBlank()) StatusGreen else Color(0xFFFF6B6B),
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
                     }
                 }
 

@@ -20,12 +20,18 @@ class SettingsManager(context: Context) {
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
     } catch (e: Exception) {
-        // Fallback to regular prefs if encryption fails
         context.getSharedPreferences("jarvis_prefs_fallback", Context.MODE_PRIVATE)
     }
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("jarvis_prefs", Context.MODE_PRIVATE)
+
+    // --- AI Provider ---
+    fun getAiProvider(): String = prefs.getString(KEY_AI_PROVIDER, "FREE") ?: "FREE"
+    fun setAiProvider(provider: String) = prefs.edit().putString(KEY_AI_PROVIDER, provider).apply()
+
+    fun getAiApiKey(): String = securePrefs.getString(KEY_AI_API_KEY, "") ?: ""
+    fun setAiApiKey(key: String) = securePrefs.edit().putString(KEY_AI_API_KEY, key).apply()
 
     // --- API Keys (encrypted) ---
     fun getKey1(): String = securePrefs.getString(KEY_ELEVENLABS_1, "") ?: ""
@@ -33,9 +39,6 @@ class SettingsManager(context: Context) {
 
     fun getKey2(): String = securePrefs.getString(KEY_ELEVENLABS_2, "") ?: ""
     fun setKey2(key: String) = securePrefs.edit().putString(KEY_ELEVENLABS_2, key).apply()
-
-    fun getClaudeApiKey(): String = securePrefs.getString(KEY_CLAUDE_API, "") ?: ""
-    fun setClaudeApiKey(key: String) = securePrefs.edit().putString(KEY_CLAUDE_API, key).apply()
 
     // --- Voice Settings ---
     fun getVoiceId(): String = prefs.getString(KEY_VOICE_ID, DEFAULT_VOICE_ID) ?: DEFAULT_VOICE_ID
@@ -66,9 +69,10 @@ class SettingsManager(context: Context) {
     fun markFirstLaunchDone() = prefs.edit().putBoolean(KEY_FIRST_LAUNCH, false).apply()
 
     companion object {
+        private const val KEY_AI_PROVIDER = "ai_provider"
+        private const val KEY_AI_API_KEY = "ai_api_key"
         private const val KEY_ELEVENLABS_1 = "elevenlabs_key_1"
         private const val KEY_ELEVENLABS_2 = "elevenlabs_key_2"
-        private const val KEY_CLAUDE_API = "claude_api_key"
         private const val KEY_VOICE_ID = "voice_id"
         private const val KEY_SPEED = "voice_speed"
         private const val KEY_PREFERRED_MODE = "preferred_mode"
@@ -78,6 +82,14 @@ class SettingsManager(context: Context) {
         private const val KEY_AUTO_DELETE_REMINDERS = "auto_delete_reminders"
         private const val KEY_FIRST_LAUNCH = "first_launch"
         const val DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb" // George
+    }
+
+    enum class AiProvider(val label: String, val hint: String) {
+        FREE("Free AI (Pollinations)", "কোনো key লাগবে না"),
+        CLAUDE("Claude (Anthropic)", "console.anthropic.com থেকে key নিন"),
+        GROQ("Groq (Llama/Mixtral)", "console.groq.com থেকে key নিন"),
+        GEMINI("Google Gemini", "aistudio.google.com থেকে key নিন"),
+        OPENROUTER("OpenRouter (Multi-Model)", "openrouter.ai থেকে key নিন");
     }
 
     // Voice character options for UI

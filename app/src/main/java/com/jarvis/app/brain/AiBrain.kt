@@ -22,7 +22,8 @@ class AiBrain {
 
     private val chatHistory = mutableListOf<Pair<String, String>>()
 
-    var claudeApiKey: String = ""
+    var provider: String = "FREE"
+    var apiKey: String = ""
 
     suspend fun ask(userInput: String, screenContext: String, locale: String): String {
         return withContext(Dispatchers.IO) {
@@ -31,16 +32,24 @@ class AiBrain {
 
             var response: String? = null
 
-            if (claudeApiKey.isNotBlank()) {
-                response = tryClaudeApi(systemPrompt, userInput)
+            if (apiKey.isNotBlank() && provider != "FREE") {
+                response = when (provider) {
+                    "CLAUDE" -> tryClaude(systemPrompt, userInput)
+                    "GROQ" -> tryOpenAiCompatible(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        apiKey, "llama-3.3-70b-versatile", systemPrompt, userInput
+                    )
+                    "GEMINI" -> tryGemini(systemPrompt, userInput)
+                    "OPENROUTER" -> tryOpenAiCompatible(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        apiKey, "meta-llama/llama-3.1-8b-instruct:free", systemPrompt, userInput
+                    )
+                    else -> null
+                }
             }
 
             if (response == null) {
-                val messages = buildOpenAiMessages(systemPrompt, userInput)
-                for (model in listOf("openai", "openai-fast")) {
-                    response = tryPollinationsPost(model, messages)
-                    if (response != null) break
-                }
+                response = tryPollinations(systemPrompt, userInput)
             }
 
             if (response != null) {
@@ -54,20 +63,13 @@ class AiBrain {
         }
     }
 
-    private fun tryClaudeApi(systemPrompt: String, userInput: String): String? {
+    private fun tryClaude(systemPrompt: String, userInput: String): String? {
         return try {
             val messages = JSONArray()
-            val recentHistory = chatHistory.takeLast(8)
-            for ((role, content) in recentHistory) {
-                messages.put(JSONObject().apply {
-                    put("role", role)
-                    put("content", content)
-                })
+            for ((role, content) in chatHistory.takeLast(8)) {
+                messages.put(JSONObject().put("role", role).put("content", content))
             }
-            messages.put(JSONObject().apply {
-                put("role", "user")
-                put("content", userInput)
-            })
+            messages.put(JSONObject().put("role", "user").put("content", userInput))
 
             val body = JSONObject().apply {
                 put("model", "claude-haiku-4-0")
@@ -78,35 +80,175 @@ class AiBrain {
 
             val request = Request.Builder()
                 .url("https://api.anthropic.com/v1/messages")
-                .addHeader("x-api-key", claudeApiKey)
+                .addHeader("x-api-key", apiKey)
                 .addHeader("anthropic-version", "2023-06-01")
                 .addHeader("content-type", "application/json")
                 .post(body.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
-            val response = client.newCall(request).execute()
-            val bodyStr = response.body?.string() ?: ""
+            val resp = client.newCall(request).execute()
+            val bodyStr = resp.body?.string() ?: ""
 
-            if (!response.isSuccessful) {
-                Log.e(TAG, "Claude error: ${response.code} body=${bodyStr.take(300)}")
+            if (!resp.isSuccessful) {
+                Log.e(TAG, "Claude error: ${resp.code} ${bodyStr.take(300)}")
                 return null
             }
 
-            val json = JSONObject(bodyStr)
-            val contentArray = json.optJSONArray("content")
-            if (contentArray != null && contentArray.length() > 0) {
-                contentArray.optJSONObject(0)
-                    ?.optString("text", "")
-                    ?.trim()
-                    ?.ifEmpty { null }
-            } else {
-                Log.e(TAG, "Claude: no content in response")
-                null
-            }
+            JSONObject(bodyStr).optJSONArray("content")
+                ?.optJSONObject(0)
+                ?.optString("text", "")
+                ?.trim()?.ifEmpty { null }
         } catch (e: Exception) {
             Log.e(TAG, "Claude exception", e)
             null
         }
+    }
+
+    private fun tryOpenAiCompatible(
+        url: String, key: String, model: String,
+        systemPrompt: String, userInput: String
+    ): String? {
+        return try {
+            val messages = JSONArray()
+            messages.put(JSONObject().put("role", "system").put("content", systemPrompt))
+            for ((role, content) in chatHistory.takeLast(8)) {
+                messages.put(JSONObject().put("role", role).put("content", content))
+            }
+            messages.put(JSONObject().put("role", "user").put("content", userInput))
+
+            val body = JSONObject().apply {
+                put("model", model)
+                put("messages", messages)
+                put("temperature", 0.7)
+                put("max_tokens", 300)
+            }
+
+            val request = Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer $key")
+                .addHeader("Content-Type", "application/json")
+                .post(body.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            val resp = client.newCall(request).execute()
+            val bodyStr = resp.body?.string() ?: ""
+
+            if (!resp.isSuccessful) {
+                Log.e(TAG, "OpenAI-compat error ($url): ${resp.code} ${bodyStr.take(300)}")
+                return null
+            }
+
+            JSONObject(bodyStr).optJSONArray("choices")
+                ?.optJSONObject(0)
+                ?.optJSONObject("message")
+                ?.optString("content", "")
+                ?.trim()?.ifEmpty { null }
+        } catch (e: Exception) {
+            Log.e(TAG, "OpenAI-compat exception ($url)", e)
+            null
+        }
+    }
+
+    private fun tryGemini(systemPrompt: String, userInput: String): String? {
+        return try {
+            val parts = JSONArray()
+            for ((role, content) in chatHistory.takeLast(8)) {
+                parts.put(JSONObject().apply {
+                    put("role", if (role == "assistant") "model" else "user")
+                    put("parts", JSONArray().put(JSONObject().put("text", content)))
+                })
+            }
+            parts.put(JSONObject().apply {
+                put("role", "user")
+                put("parts", JSONArray().put(JSONObject().put("text", userInput)))
+            })
+
+            val body = JSONObject().apply {
+                put("system_instruction", JSONObject().put("parts",
+                    JSONArray().put(JSONObject().put("text", systemPrompt))))
+                put("contents", parts)
+                put("generationConfig", JSONObject().apply {
+                    put("maxOutputTokens", 300)
+                    put("temperature", 0.7)
+                })
+            }
+
+            val request = Request.Builder()
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey")
+                .addHeader("Content-Type", "application/json")
+                .post(body.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            val resp = client.newCall(request).execute()
+            val bodyStr = resp.body?.string() ?: ""
+
+            if (!resp.isSuccessful) {
+                Log.e(TAG, "Gemini error: ${resp.code} ${bodyStr.take(300)}")
+                return null
+            }
+
+            JSONObject(bodyStr).optJSONArray("candidates")
+                ?.optJSONObject(0)
+                ?.optJSONObject("content")
+                ?.optJSONArray("parts")
+                ?.optJSONObject(0)
+                ?.optString("text", "")
+                ?.trim()?.ifEmpty { null }
+        } catch (e: Exception) {
+            Log.e(TAG, "Gemini exception", e)
+            null
+        }
+    }
+
+    private fun tryPollinations(systemPrompt: String, userInput: String): String? {
+        val messages = JSONArray()
+        messages.put(JSONObject().put("role", "system").put("content", systemPrompt))
+        for ((role, content) in chatHistory.takeLast(8)) {
+            messages.put(JSONObject().put("role", role).put("content", content))
+        }
+        messages.put(JSONObject().put("role", "user").put("content", userInput))
+
+        for (model in listOf("openai", "openai-fast")) {
+            try {
+                val body = JSONObject().apply {
+                    put("model", model)
+                    put("messages", messages)
+                    put("temperature", 0.7)
+                }
+
+                val request = Request.Builder()
+                    .url("https://text.pollinations.ai/openai")
+                    .post(body.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                val resp = client.newCall(request).execute()
+                val bodyStr = resp.body?.string() ?: ""
+
+                if (!resp.isSuccessful) {
+                    Log.e(TAG, "Pollinations error ($model): ${resp.code}")
+                    continue
+                }
+
+                if (bodyStr.contains("reached its budget", ignoreCase = true) ||
+                    bodyStr.contains("rate limit", ignoreCase = true)) {
+                    Log.w(TAG, "Pollinations budget/rate error ($model)")
+                    continue
+                }
+
+                val content = JSONObject(bodyStr).optJSONArray("choices")
+                    ?.optJSONObject(0)
+                    ?.optJSONObject("message")
+                    ?.optString("content", "")
+                    ?.trim()?.ifEmpty { null }
+
+                if (content != null && !content.contains("reached its budget", ignoreCase = true)) {
+                    return content
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Pollinations exception ($model)", e)
+            }
+        }
+        return null
     }
 
     private fun buildSystemPrompt(isHindi: Boolean, screenContext: String): String {
@@ -133,80 +275,6 @@ class AiBrain {
                 append("সরাসরি, সঠিক ও সাবলীল বাংলায় ১-৩ বাক্যে উত্তর দাও। ")
                 append("ব্যবহারকারী যা বলেছে সেটা repeat করবে না।")
             }
-        }
-    }
-
-    private fun buildOpenAiMessages(systemPrompt: String, userInput: String): JSONArray {
-        val messages = JSONArray()
-        messages.put(JSONObject().apply {
-            put("role", "system")
-            put("content", systemPrompt)
-        })
-
-        val recentHistory = chatHistory.takeLast(8)
-        for ((role, content) in recentHistory) {
-            messages.put(JSONObject().apply {
-                put("role", role)
-                put("content", content)
-            })
-        }
-
-        messages.put(JSONObject().apply {
-            put("role", "user")
-            put("content", userInput)
-        })
-
-        return messages
-    }
-
-    private fun tryPollinationsPost(model: String, messages: JSONArray): String? {
-        return try {
-            val body = JSONObject().apply {
-                put("model", model)
-                put("messages", messages)
-                put("temperature", 0.7)
-            }
-
-            val request = Request.Builder()
-                .url("https://text.pollinations.ai/openai")
-                .post(body.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = client.newCall(request).execute()
-            val bodyStr = response.body?.string() ?: ""
-
-            if (!response.isSuccessful) {
-                Log.e(TAG, "Error ($model): ${response.code} body=${bodyStr.take(200)}")
-                return null
-            }
-
-            if (bodyStr.contains("reached its budget", ignoreCase = true) ||
-                bodyStr.contains("rate limit", ignoreCase = true)) {
-                Log.w(TAG, "Budget/rate error ($model): ${bodyStr.take(200)}")
-                return null
-            }
-
-            try {
-                val json = JSONObject(bodyStr)
-                val content = json.optJSONArray("choices")
-                    ?.optJSONObject(0)
-                    ?.optJSONObject("message")
-                    ?.optString("content", "")
-                    ?.trim()
-                    ?.ifEmpty { null }
-
-                if (content != null && content.contains("reached its budget", ignoreCase = true)) {
-                    Log.w(TAG, "Budget error in content ($model)")
-                    return null
-                }
-                content
-            } catch (e: Exception) {
-                Log.e(TAG, "Parse error ($model)", e)
-                null
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Exception ($model)", e)
-            null
         }
     }
 
