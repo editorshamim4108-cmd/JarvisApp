@@ -169,10 +169,7 @@ class MainActivity : ComponentActivity() {
             startService(serviceIntent)
         }
 
-        // Start overlay service (but don't show bubble — it appears only on wake word)
-        if (Settings.canDrawOverlays(this)) {
-            startService(Intent(this, OverlayService::class.java))
-        }
+        // Overlay service starts only when wake word is detected — not on app launch
     }
 
     override fun onResume() {

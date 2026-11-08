@@ -6,6 +6,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.provider.Settings
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -60,6 +61,9 @@ class JarvisForegroundService : Service() {
             }
             ACTION_PROCESS_TEXT -> {
                 val text = intent.getStringExtra(EXTRA_TEXT) ?: return START_STICKY
+                if (currentState == JarvisState.STANDBY) {
+                    showOverlay()
+                }
                 processCommand(text)
             }
         }
@@ -124,7 +128,6 @@ class JarvisForegroundService : Service() {
         currentListenMode = ListenMode.WAKE_WORD
         currentState = JarvisState.STANDBY
         stateListeners.forEach { it(currentState) }
-        updateOverlayState("STANDBY")
         hideOverlay()
         startRecognizer()
         startWatchdog()
@@ -181,7 +184,7 @@ class JarvisForegroundService : Service() {
         watchdogJob?.cancel()
         watchdogJob = scope.launch {
             while (true) {
-                delay(15_000)
+                delay(5_000)
                 if (!isListening && currentState != JarvisState.PROCESSING && currentState != JarvisState.SPEAKING) {
                     Log.w(TAG, "Watchdog: recognizer died (state=$currentState, mode=$currentListenMode), restarting")
                     restartCurrentMode()
@@ -243,6 +246,7 @@ class JarvisForegroundService : Service() {
                         when (currentListenMode) {
                             ListenMode.WAKE_WORD -> {
                                 val lower = text.lowercase()
+                                Log.d(TAG, "Wake word check: heard='$lower'")
                                 if (containsWakeWord(lower)) {
                                     val command = extractCommandAfterWakeWord(text)
                                     onWakeWordDetected(command)
@@ -263,7 +267,7 @@ class JarvisForegroundService : Service() {
                         isListening = false
                         Log.e(TAG, "Recognition error=$error mode=$currentListenMode")
                         scope.launch {
-                            delay(if (error == SpeechRecognizer.ERROR_CLIENT) 1000 else 500)
+                            delay(if (error == SpeechRecognizer.ERROR_CLIENT) 1000 else 300)
                             restartCurrentMode()
                         }
                     }
@@ -272,8 +276,15 @@ class JarvisForegroundService : Service() {
                         val partial = partialResults
                             ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                             ?.firstOrNull()
-                        if (!partial.isNullOrEmpty() && currentListenMode == ListenMode.COMMAND) {
-                            textListeners.forEach { it(partial) }
+                        if (!partial.isNullOrEmpty()) {
+                            if (currentListenMode == ListenMode.COMMAND) {
+                                textListeners.forEach { it(partial) }
+                            } else {
+                                val lower = partial.lowercase()
+                                if (containsWakeWord(lower)) {
+                                    Log.d(TAG, "Wake word in partial: '$lower'")
+                                }
+                            }
                         }
                     }
 
@@ -286,7 +297,16 @@ class JarvisForegroundService : Service() {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+
+                    if (currentListenMode == ListenMode.WAKE_WORD) {
+                        putExtra("android.speech.extras.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", 10000L)
+                        putExtra("android.speech.extras.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 10000L)
+                        putExtra("android.speech.extras.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 10000L)
+                    } else {
+                        putExtra("android.speech.extras.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 5000L)
+                        putExtra("android.speech.extras.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 3000L)
+                    }
                 }
                 speechRecognizer?.startListening(intent)
             } catch (e: Exception) {
@@ -303,7 +323,7 @@ class JarvisForegroundService : Service() {
     private fun restartCurrentMode() {
         stopCurrentListening()
         scope.launch {
-            delay(300)
+            delay(200)
             if (currentListenMode == ListenMode.WAKE_WORD) {
                 currentState = JarvisState.STANDBY
                 stateListeners.forEach { it(currentState) }
@@ -387,6 +407,7 @@ class JarvisForegroundService : Service() {
     }
 
     private fun updateOverlayState(state: String) {
+        if (OverlayService.instance == null) return
         val intent = Intent(this, OverlayService::class.java).apply {
             action = OverlayService.ACTION_SET_STATE
             putExtra(OverlayService.EXTRA_STATE, state)
@@ -395,6 +416,7 @@ class JarvisForegroundService : Service() {
     }
 
     private fun showOverlay() {
+        if (!Settings.canDrawOverlays(this)) return
         val intent = Intent(this, OverlayService::class.java).apply {
             action = OverlayService.ACTION_SHOW
         }
@@ -402,6 +424,7 @@ class JarvisForegroundService : Service() {
     }
 
     private fun hideOverlay() {
+        if (OverlayService.instance == null) return
         val intent = Intent(this, OverlayService::class.java).apply {
             action = OverlayService.ACTION_HIDE
         }
