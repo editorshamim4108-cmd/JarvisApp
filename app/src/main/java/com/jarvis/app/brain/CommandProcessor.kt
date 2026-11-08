@@ -455,12 +455,19 @@ class CommandProcessor(private val context: Context) {
         }
 
         svc.clickSearchField()
-        delay(800)
+        delay(1200)
         svc.performTypeText(contact)
-        delay(1500)
+        delay(2000)
 
-        if (svc.performClickOnText(contact)) {
-            delay(1500)
+        // Try clicking contact, with retry
+        var found = svc.performClickOnText(contact)
+        if (!found) {
+            delay(1000)
+            found = svc.performClickOnText(contact) || svc.clickFirstClickableItem()
+        }
+
+        if (found) {
+            delay(2000)
             if (message.isNotEmpty()) {
                 svc.tapEditFieldAndType(message)
                 delay(500)
@@ -512,11 +519,16 @@ class CommandProcessor(private val context: Context) {
 
         if (contact.isNotEmpty()) {
             svc.clickSearchField()
-            delay(800)
+            delay(1200)
             svc.performTypeText(contact)
-            delay(1500)
-            if (svc.performClickOnText(contact)) {
-                delay(1500)
+            delay(2000)
+            var found = svc.performClickOnText(contact)
+            if (!found) {
+                delay(1000)
+                found = svc.performClickOnText(contact) || svc.clickFirstClickableItem()
+            }
+            if (found) {
+                delay(2000)
                 if (message.isNotEmpty()) {
                     svc.tapEditFieldAndType(message)
                     delay(500)

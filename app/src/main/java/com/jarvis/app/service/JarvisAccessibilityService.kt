@@ -75,6 +75,7 @@ class JarvisAccessibilityService : AccessibilityService() {
 
         val allNodes = mutableListOf<AccessibilityNodeInfo>()
         collectAllNodes(root, allNodes)
+
         for (node in allNodes) {
             val text = node.text?.toString()?.lowercase() ?: ""
             val desc = node.contentDescription?.toString()?.lowercase() ?: ""
@@ -85,6 +86,36 @@ class JarvisAccessibilityService : AccessibilityService() {
                 }
             }
         }
+
+        // Fuzzy: match if ALL words of target appear in node text
+        val targetWords = lower.split(" ").filter { it.length > 1 }
+        if (targetWords.isNotEmpty()) {
+            for (node in allNodes) {
+                val text = node.text?.toString()?.lowercase() ?: ""
+                if (text.isNotEmpty() && targetWords.all { text.contains(it) }) {
+                    if (clickNodeOrParent(node)) {
+                        allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+                        return true
+                    }
+                }
+            }
+        }
+
+        // Last resort: tap by screen coordinates
+        for (node in allNodes) {
+            val text = node.text?.toString()?.lowercase() ?: ""
+            val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+            if (text.contains(lower) || desc.contains(lower) ||
+                (targetWords.isNotEmpty() && text.isNotEmpty() && targetWords.all { text.contains(it) })) {
+                val bounds = android.graphics.Rect()
+                node.getBoundsInScreen(bounds)
+                if (bounds.width() > 0 && bounds.height() > 0) {
+                    allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+                    return tapAtPosition(bounds.centerX().toFloat(), bounds.centerY().toFloat())
+                }
+            }
+        }
+
         allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
         return false
     }
@@ -150,6 +181,8 @@ class JarvisAccessibilityService : AccessibilityService() {
 
     fun performTypeText(text: String): Boolean {
         val root = rootInActiveWindow ?: return false
+
+        // 1. Try currently focused input
         val focusedNode = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
         if (focusedNode != null) {
             val args = Bundle().apply {
@@ -157,26 +190,10 @@ class JarvisAccessibilityService : AccessibilityService() {
             }
             val result = focusedNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
             focusedNode.recycle()
-            return result
+            if (result) return true
         }
-        val editFields = findEditableNodes(root)
-        if (editFields.isNotEmpty()) {
-            val target = editFields.last()
-            target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            target.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
-            try { Thread.sleep(200) } catch (_: Exception) {}
-            val args = Bundle().apply {
-                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
-            }
-            val result = target.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-            editFields.forEach { try { it.recycle() } catch (_: Exception) {} }
-            return result
-        }
-        return false
-    }
 
-    fun tapEditFieldAndType(text: String): Boolean {
-        val root = rootInActiveWindow ?: return false
+        // 2. Standard editable nodes
         val editFields = findEditableNodes(root)
         if (editFields.isNotEmpty()) {
             val target = editFields.last()
@@ -188,8 +205,102 @@ class JarvisAccessibilityService : AccessibilityService() {
             }
             val result = target.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
             editFields.forEach { try { it.recycle() } catch (_: Exception) {} }
-            return result
+            if (result) return true
         }
+
+        // 3. Find by className or contentDescription
+        val allNodes = mutableListOf<AccessibilityNodeInfo>()
+        collectAllNodes(root, allNodes)
+        for (node in allNodes) {
+            val cls = node.className?.toString() ?: ""
+            val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+            val hint = node.hintText?.toString()?.lowercase() ?: ""
+            if (cls.contains("EditText") || desc.contains("search") || desc.contains("সার্চ") ||
+                desc.contains("type a message") || desc.contains("মেসেজ") ||
+                hint.contains("search") || hint.contains("সার্চ")) {
+                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+                try { Thread.sleep(300) } catch (_: Exception) {}
+                val args = Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                }
+                val result = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+                if (result) return true
+            }
+        }
+        allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+        return false
+    }
+
+    fun tapEditFieldAndType(text: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+
+        // 1. Standard editable fields
+        val editFields = findEditableNodes(root)
+        if (editFields.isNotEmpty()) {
+            val target = editFields.last()
+            target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            target.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+            try { Thread.sleep(300) } catch (_: Exception) {}
+            val args = Bundle().apply {
+                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+            }
+            val result = target.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            editFields.forEach { try { it.recycle() } catch (_: Exception) {} }
+            if (result) return true
+        }
+
+        // 2. Find by contentDescription / hintText / className
+        val allNodes = mutableListOf<AccessibilityNodeInfo>()
+        collectAllNodes(root, allNodes)
+        val descPatterns = listOf("type a message", "message", "মেসেজ", "type here",
+            "write a message", "লিখুন", "search", "সার্চ")
+        for (node in allNodes) {
+            val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+            val cls = node.className?.toString() ?: ""
+            val hint = node.hintText?.toString()?.lowercase() ?: ""
+            if (descPatterns.any { desc.contains(it) || hint.contains(it) } ||
+                (cls.contains("EditText") && node.isFocusable)) {
+                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+                try { Thread.sleep(300) } catch (_: Exception) {}
+                val args = Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                }
+                val result = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                if (result) {
+                    allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+                    return true
+                }
+            }
+        }
+
+        // 3. Tap any editable-looking field by coordinates, then set text
+        for (node in allNodes) {
+            val cls = node.className?.toString() ?: ""
+            if (cls.contains("EditText") || node.isEditable) {
+                val bounds = android.graphics.Rect()
+                node.getBoundsInScreen(bounds)
+                if (bounds.width() > 0 && bounds.height() > 0) {
+                    tapAtPosition(bounds.centerX().toFloat(), bounds.centerY().toFloat())
+                    try { Thread.sleep(500) } catch (_: Exception) {}
+                    val newRoot = rootInActiveWindow
+                    val focused = newRoot?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                    if (focused != null) {
+                        val args = Bundle().apply {
+                            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                        }
+                        val result = focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                        focused.recycle()
+                        allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+                        if (result) return true
+                    }
+                }
+            }
+        }
+
+        allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
         return false
     }
 
@@ -242,7 +353,8 @@ class JarvisAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow ?: return false
         val searchTexts = listOf(
             "Search", "search", "Search…", "Search or type URL",
-            "সার্চ", "খুঁজুন", "Search...", "Type a message"
+            "সার্চ", "খুঁজুন", "Search...", "Ask Meta AI or search",
+            "Search or type a web address"
         )
         for (text in searchTexts) {
             val nodes = root.findAccessibilityNodeInfosByText(text)
@@ -260,18 +372,44 @@ class JarvisAccessibilityService : AccessibilityService() {
                 node.recycle()
             }
         }
+
         val allNodes = mutableListOf<AccessibilityNodeInfo>()
         collectAllNodes(root, allNodes)
+
         for (node in allNodes) {
             val desc = node.contentDescription?.toString()?.lowercase() ?: ""
-            if (desc.contains("search") || desc.contains("সার্চ")) {
+            if (desc.contains("search") || desc.contains("সার্চ") || desc.contains("খুঁজুন")) {
                 if (node.isClickable) {
                     val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    if (result) {
+                        allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+                        return true
+                    }
+                }
+                if (clickNodeOrParent(node)) {
                     allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
-                    if (result) return true
+                    return true
+                }
+                // Tap by coordinates for icon buttons
+                val bounds = android.graphics.Rect()
+                node.getBoundsInScreen(bounds)
+                if (bounds.width() > 0 && bounds.height() > 0) {
+                    allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+                    return tapAtPosition(bounds.centerX().toFloat(), bounds.centerY().toFloat())
                 }
             }
         }
+
+        // Fallback: find first editable field
+        for (node in allNodes) {
+            if (node.isEditable || node.className?.toString()?.contains("EditText") == true) {
+                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+                allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+                return true
+            }
+        }
+
         allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
         return false
     }
