@@ -180,7 +180,13 @@ class CommandProcessor(private val context: Context) {
     private fun isStopCommand(lower: String): Boolean {
         return lower.contains("অফ হয়ে যাও") || lower.contains("ঘুমিয়ে পড়ো") ||
                 lower.contains("stop listening") || lower.contains("চুপ থাকো") ||
-                lower.contains("বন্ধ হও") || lower.contains("নীরব")
+                lower.contains("বন্ধ হও") || lower.contains("নীরব") ||
+                lower.contains("সাইলেন্ট মোড") || lower.contains("silent mode") ||
+                lower.contains("go to sleep") || lower.contains("ঘুমাও") ||
+                lower.contains("থামো") || lower.contains("বিশ্রাম") ||
+                lower.contains("যাও এখন") || lower.contains("বন্ধ করো") ||
+                lower.contains("stop jarvis") || lower.contains("জার্ভিস বন্ধ") ||
+                lower.contains("জার্ভিস থামো")
     }
 
     private fun isJustWakeWord(lower: String): Boolean {

@@ -50,7 +50,7 @@
         <service
             android:name=".service.OverlayService"
             android:exported="false"
-            android:stopWithTask="false" />
+            android:stopWithTask="true" />
 
         <!-- Accessibility Service (phone control) -->
         <service

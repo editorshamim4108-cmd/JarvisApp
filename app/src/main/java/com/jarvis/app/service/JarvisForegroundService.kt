@@ -32,6 +32,7 @@ class JarvisForegroundService : Service() {
     private var commandTimeoutJob: Job? = null
     private var safetyTimeoutJob: Job? = null
     private var processingJob: Job? = null
+    private var watchdogJob: Job? = null
     private lateinit var settings: SettingsManager
     private lateinit var commandProcessor: CommandProcessor
 
@@ -82,6 +83,7 @@ class JarvisForegroundService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         cancelAllJobs()
+        watchdogJob?.cancel()
         stopCurrentListening()
         scope.cancel()
         instance = null
@@ -125,6 +127,7 @@ class JarvisForegroundService : Service() {
         updateOverlayState("STANDBY")
         hideOverlay()
         startRecognizer()
+        startWatchdog()
     }
 
     fun switchToCommandMode() {
@@ -138,14 +141,7 @@ class JarvisForegroundService : Service() {
         updateOverlayState("LISTENING")
 
         startRecognizer()
-
-        commandTimeoutJob = scope.launch {
-            delay(15_000)
-            if (currentState == JarvisState.LISTENING) {
-                Log.d(TAG, "Command timeout — no speech, returning to standby")
-                goToStandby()
-            }
-        }
+        startWatchdog()
     }
 
     private fun processCommand(text: String) {
@@ -161,7 +157,7 @@ class JarvisForegroundService : Service() {
             delay(45_000)
             Log.w(TAG, "Safety timeout — cancelling stuck processing")
             processingJob?.cancel()
-            goToStandby()
+            switchToCommandMode()
         }
 
         processingJob = scope.launch {
@@ -174,6 +170,21 @@ class JarvisForegroundService : Service() {
                 safetyTimeoutJob?.cancel()
                 if (currentState != JarvisState.STANDBY) {
                     switchToCommandMode()
+                }
+            }
+        }
+    }
+
+    // === WATCHDOG ===
+
+    private fun startWatchdog() {
+        watchdogJob?.cancel()
+        watchdogJob = scope.launch {
+            while (true) {
+                delay(15_000)
+                if (!isListening && currentState != JarvisState.PROCESSING && currentState != JarvisState.SPEAKING) {
+                    Log.w(TAG, "Watchdog: recognizer died (state=$currentState, mode=$currentListenMode), restarting")
+                    restartCurrentMode()
                 }
             }
         }
@@ -251,11 +262,9 @@ class JarvisForegroundService : Service() {
                     override fun onError(error: Int) {
                         isListening = false
                         Log.e(TAG, "Recognition error=$error mode=$currentListenMode")
-                        if (error != SpeechRecognizer.ERROR_CLIENT) {
-                            scope.launch {
-                                delay(500)
-                                restartCurrentMode()
-                            }
+                        scope.launch {
+                            delay(if (error == SpeechRecognizer.ERROR_CLIENT) 1000 else 500)
+                            restartCurrentMode()
                         }
                     }
 
@@ -300,6 +309,10 @@ class JarvisForegroundService : Service() {
                 stateListeners.forEach { it(currentState) }
                 startRecognizer()
             } else {
+                if (currentState != JarvisState.PROCESSING) {
+                    currentState = JarvisState.LISTENING
+                    stateListeners.forEach { it(currentState) }
+                }
                 startRecognizer()
             }
         }
@@ -311,14 +324,17 @@ class JarvisForegroundService : Service() {
         return lower.contains("jarvis") || lower.contains("জার্ভিস") ||
                 lower.contains("জারভিস") || lower.contains("jarvish") ||
                 lower.contains("jarves") || lower.contains("jarvas") ||
-                lower.contains("জার্বিস") || lower.contains("জারবিস")
+                lower.contains("জার্বিস") || lower.contains("জারবিস") ||
+                lower.contains("জাভিস") || lower.contains("jarwis") ||
+                lower.contains("jervis") || lower.contains("জার্ভিশ")
     }
 
     private fun extractCommandAfterWakeWord(text: String): String? {
         val patterns = listOf(
             "hey jarvis ", "hello jarvis ", "hi jarvis ", "jarvis ",
             "হেই জার্ভিস ", "হ্যালো জার্ভিস ", "জার্ভিস ",
-            "hey jarvish ", "hello jarvish ", "jarvish "
+            "hey jarvish ", "hello jarvish ", "jarvish ",
+            "হে জার্ভিস ", "হেই জারভিস ", "জারভিস "
         )
         val lower = text.lowercase()
         for (p in patterns) {
