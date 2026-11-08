@@ -30,6 +30,7 @@ class JarvisForegroundService : Service() {
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
     private var commandTimeoutJob: Job? = null
+    private var safetyTimeoutJob: Job? = null
     private lateinit var settings: SettingsManager
     private lateinit var commandProcessor: CommandProcessor
 
@@ -64,7 +65,7 @@ class JarvisForegroundService : Service() {
                     stateListeners.forEach { it(currentState) }
                     commandProcessor.process(text)
                     delay(500)
-                    startWakeWordListening()
+                    forceReturnToStandby()
                 }
             }
         }
@@ -89,6 +90,7 @@ class JarvisForegroundService : Service() {
         super.onDestroy()
         stopCurrentListening()
         commandTimeoutJob?.cancel()
+        safetyTimeoutJob?.cancel()
         scope.cancel()
         instance = null
     }
@@ -114,14 +116,26 @@ class JarvisForegroundService : Service() {
         startForeground(NOTIFICATION_ID, notification)
     }
 
-    // --- Wake Word Mode (STANDBY) ---
-    private fun startWakeWordListening() {
-        if (currentState == JarvisState.SPEAKING || currentState == JarvisState.PROCESSING) return
-
+    private fun forceReturnToStandby() {
+        safetyTimeoutJob?.cancel()
+        stopCurrentListening()
         currentListenMode = ListenMode.WAKE_WORD
         currentState = JarvisState.STANDBY
         stateListeners.forEach { it(currentState) }
         updateOverlayState("STANDBY")
+        hideOverlay()
+        startRecognizer()
+    }
+
+    // --- Wake Word Mode (STANDBY) ---
+    private fun startWakeWordListening() {
+        safetyTimeoutJob?.cancel()
+        stopCurrentListening()
+        currentListenMode = ListenMode.WAKE_WORD
+        currentState = JarvisState.STANDBY
+        stateListeners.forEach { it(currentState) }
+        updateOverlayState("STANDBY")
+        hideOverlay()
 
         startRecognizer()
     }
@@ -129,6 +143,7 @@ class JarvisForegroundService : Service() {
     // --- Command Mode (LISTENING) ---
     fun switchToCommandMode() {
         commandTimeoutJob?.cancel()
+        safetyTimeoutJob?.cancel()
         currentListenMode = ListenMode.COMMAND
         currentState = JarvisState.LISTENING
         stateListeners.forEach { it(currentState) }
@@ -140,8 +155,17 @@ class JarvisForegroundService : Service() {
         commandTimeoutJob = scope.launch {
             delay(15_000)
             if (currentState == JarvisState.LISTENING) {
-                startWakeWordListening()
+                forceReturnToStandby()
             }
+        }
+    }
+
+    private fun startSafetyTimeout() {
+        safetyTimeoutJob?.cancel()
+        safetyTimeoutJob = scope.launch {
+            delay(60_000)
+            Log.w(TAG, "Safety timeout — forcing return to STANDBY from $currentState")
+            forceReturnToStandby()
         }
     }
 
@@ -205,10 +229,11 @@ class JarvisForegroundService : Service() {
                             ListenMode.COMMAND -> {
                                 lastHeardText = text
                                 textListeners.forEach { it(text) }
+                                startSafetyTimeout()
                                 scope.launch {
                                     commandProcessor.process(text)
                                     delay(1000)
-                                    startWakeWordListening()
+                                    forceReturnToStandby()
                                 }
                             }
                         }
@@ -262,7 +287,9 @@ class JarvisForegroundService : Service() {
         scope.launch {
             delay(300)
             if (currentListenMode == ListenMode.WAKE_WORD) {
-                startWakeWordListening()
+                currentState = JarvisState.STANDBY
+                stateListeners.forEach { it(currentState) }
+                startRecognizer()
             } else {
                 isListening = false
                 startRecognizer()
@@ -295,8 +322,10 @@ class JarvisForegroundService : Service() {
     }
 
     fun onWakeWordDetected(command: String? = null) {
+        safetyTimeoutJob?.cancel()
         scope.launch(Dispatchers.Main) {
             bringToForeground()
+            showOverlay()
 
             updateOverlayState("LISTENING")
             val expandIntent = Intent(this@JarvisForegroundService, OverlayService::class.java).apply {
@@ -311,9 +340,10 @@ class JarvisForegroundService : Service() {
                 commandProcessor.acknowledge("জি Boss")
                 currentState = JarvisState.PROCESSING
                 stateListeners.forEach { it(currentState) }
+                startSafetyTimeout()
                 commandProcessor.process(command)
                 delay(1000)
-                startWakeWordListening()
+                forceReturnToStandby()
             } else {
                 commandProcessor.acknowledge("জি Boss, আমি আছি")
                 switchToCommandMode()
@@ -339,9 +369,22 @@ class JarvisForegroundService : Service() {
         try { startService(intent) } catch (_: Exception) {}
     }
 
+    private fun showOverlay() {
+        val intent = Intent(this, OverlayService::class.java).apply {
+            action = OverlayService.ACTION_SHOW
+        }
+        try { startService(intent) } catch (_: Exception) {}
+    }
+
+    private fun hideOverlay() {
+        val intent = Intent(this, OverlayService::class.java).apply {
+            action = OverlayService.ACTION_HIDE
+        }
+        try { startService(intent) } catch (_: Exception) {}
+    }
+
     fun stopSpeechRecognition() {
-        stopCurrentListening()
-        startWakeWordListening()
+        forceReturnToStandby()
     }
 
     private fun stopCurrentListening() {

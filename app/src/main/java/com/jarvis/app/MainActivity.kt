@@ -169,12 +169,9 @@ class MainActivity : ComponentActivity() {
             startService(serviceIntent)
         }
 
-        // Start overlay if permission granted
+        // Start overlay service (but don't show bubble — it appears only on wake word)
         if (Settings.canDrawOverlays(this)) {
-            val overlayIntent = Intent(this, OverlayService::class.java).apply {
-                action = OverlayService.ACTION_SHOW
-            }
-            startService(overlayIntent)
+            startService(Intent(this, OverlayService::class.java))
         }
     }
 
