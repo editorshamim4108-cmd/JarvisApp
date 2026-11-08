@@ -798,20 +798,80 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Permissions
+                // Permissions - Comprehensive
                 item {
-                    SettingsCard("Permissions") {
-                        PermissionRow("Accessibility Service", JarvisAccessibilityService.isRunning()) {
-                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                            startActivity(intent)
+                    SettingsCard("Permissions (সব ON করুন)") {
+                        PermissionRow(
+                            "Accessibility Service",
+                            "ফোন কন্ট্রোল, ক্লিক, টাইপ",
+                            JarvisAccessibilityService.isRunning()
+                        ) {
+                            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         }
-                        PermissionRow("Overlay Permission", Settings.canDrawOverlays(this@MainActivity)) {
-                            val intent = Intent(
+                        PermissionRow(
+                            "Overlay (ভাসমান বাবল)",
+                            "ফ্লোটিং ওভারলে দেখানো",
+                            Settings.canDrawOverlays(this@MainActivity)
+                        ) {
+                            startActivity(Intent(
                                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                                 Uri.parse("package:$packageName")
-                            )
-                            startActivity(intent)
+                            ))
                         }
+                        PermissionRow(
+                            "Battery Optimization OFF",
+                            "ব্যাকগ্রাউন্ডে চলবে",
+                            (getSystemService(POWER_SERVICE) as PowerManager)
+                                .isIgnoringBatteryOptimizations(packageName)
+                        ) {
+                            try {
+                                @Suppress("BatteryLife")
+                                startActivity(Intent(
+                                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                    Uri.parse("package:$packageName")
+                                ))
+                            } catch (_: Exception) {
+                                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                            }
+                        }
+                        PermissionRow(
+                            "Microphone",
+                            "ভয়েস ইনপুট",
+                            checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+                                android.content.pm.PackageManager.PERMISSION_GRANTED
+                        ) {
+                            permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            PermissionRow(
+                                "Notifications",
+                                "রিমাইন্ডার ও স্ট্যাটাস",
+                                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+                                    android.content.pm.PackageManager.PERMISSION_GRANTED
+                            ) {
+                                permissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+                            }
+                        }
+                        PermissionRow(
+                            "Phone/Contacts",
+                            "কল ও কন্টাক্ট",
+                            checkSelfPermission(Manifest.permission.READ_CONTACTS) ==
+                                android.content.pm.PackageManager.PERMISSION_GRANTED
+                        ) {
+                            permissionLauncher.launch(arrayOf(
+                                Manifest.permission.READ_CONTACTS,
+                                Manifest.permission.WRITE_CONTACTS,
+                                Manifest.permission.CALL_PHONE
+                            ))
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "⚡ সব Permission ON করলে JARVIS পুরো ক্ষমতায় কাজ করবে",
+                            fontSize = 10.sp,
+                            color = CyberCyan,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
 
@@ -883,19 +943,31 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun PermissionRow(label: String, granted: Boolean, onClick: () -> Unit) {
+    fun PermissionRow(label: String, desc: String = "", granted: Boolean, onClick: () -> Unit) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 4.dp)
-                .clickable(onClick = onClick),
+                .background(
+                    if (!granted) Color(0xFFFF6B6B).copy(alpha = 0.05f)
+                    else Color.Transparent,
+                    RoundedCornerShape(8.dp)
+                )
+                .clickable(onClick = onClick)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(label, fontSize = 12.sp, color = Color.White)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(label, fontSize = 12.sp, color = Color.White)
+                if (desc.isNotEmpty()) {
+                    Text(desc, fontSize = 9.sp, color = TextGray)
+                }
+            }
             Text(
-                if (granted) "Enabled" else "Tap to enable",
+                if (granted) "ON" else "OFF →",
                 fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
                 fontFamily = FontFamily.Monospace,
                 color = if (granted) StatusGreen else Color(0xFFFF6B6B)
             )

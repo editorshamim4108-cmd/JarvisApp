@@ -16,6 +16,7 @@ import com.jarvis.app.service.OverlayService
 import com.jarvis.app.settings.SettingsManager
 import com.jarvis.app.voice.VoiceEngine
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 class CommandProcessor(private val context: Context) {
@@ -26,8 +27,8 @@ class CommandProcessor(private val context: Context) {
     private val db = AppDatabase.getInstance(context)
     private val reminderManager = ReminderManager(context)
 
-    // Common app package names
     private val appPackages = mapOf(
+        // WhatsApp variants
         "whatsapp" to "com.whatsapp",
         "whats app" to "com.whatsapp",
         "watts app" to "com.whatsapp",
@@ -36,49 +37,155 @@ class CommandProcessor(private val context: Context) {
         "হোয়াটস অ্যাপ" to "com.whatsapp",
         "ওয়াটসঅ্যাপ" to "com.whatsapp",
         "ওয়াটস অ্যাপ" to "com.whatsapp",
+        // YouTube
         "youtube" to "com.google.android.youtube",
         "ইউটিউব" to "com.google.android.youtube",
+        // Facebook
         "facebook" to "com.facebook.katana",
         "ফেসবুক" to "com.facebook.katana",
+        "fb" to "com.facebook.katana",
+        // Instagram
         "instagram" to "com.instagram.android",
         "ইনস্টাগ্রাম" to "com.instagram.android",
+        "ইন্সটা" to "com.instagram.android",
+        // Chrome
         "chrome" to "com.android.chrome",
         "ক্রোম" to "com.android.chrome",
-        "camera" to "com.android.camera",
-        "ক্যামেরা" to "com.android.camera",
-        "camera2" to "com.android.camera2",
+        "google chrome" to "com.android.chrome",
+        // Samsung Camera
+        "camera" to "com.sec.android.app.camera",
+        "ক্যামেরা" to "com.sec.android.app.camera",
+        "samsung camera" to "com.sec.android.app.camera",
+        // Settings
         "settings" to "com.android.settings",
         "সেটিংস" to "com.android.settings",
+        "সেটিং" to "com.android.settings",
+        // Telegram
         "telegram" to "org.telegram.messenger",
         "টেলিগ্রাম" to "org.telegram.messenger",
+        // Maps
         "maps" to "com.google.android.apps.maps",
         "ম্যাপ" to "com.google.android.apps.maps",
         "google maps" to "com.google.android.apps.maps",
-        "calculator" to "com.google.android.calculator",
-        "ক্যালকুলেটর" to "com.google.android.calculator",
-        "gallery" to "com.google.android.apps.photos",
-        "গ্যালারি" to "com.google.android.apps.photos",
+        "গুগল ম্যাপ" to "com.google.android.apps.maps",
+        // Samsung Calculator
+        "calculator" to "com.sec.android.app.popupcalculator",
+        "ক্যালকুলেটর" to "com.sec.android.app.popupcalculator",
+        "samsung calculator" to "com.sec.android.app.popupcalculator",
+        // Samsung Gallery
+        "gallery" to "com.sec.android.gallery3d",
+        "গ্যালারি" to "com.sec.android.gallery3d",
+        "samsung gallery" to "com.sec.android.gallery3d",
+        // Google Photos
         "photos" to "com.google.android.apps.photos",
-        "clock" to "com.google.android.deskclock",
-        "ঘড়ি" to "com.google.android.deskclock",
+        "ফটোস" to "com.google.android.apps.photos",
+        "google photos" to "com.google.android.apps.photos",
+        // Samsung Clock
+        "clock" to "com.sec.android.app.clockpackage",
+        "ঘড়ি" to "com.sec.android.app.clockpackage",
+        "alarm" to "com.sec.android.app.clockpackage",
+        "অ্যালার্ম" to "com.sec.android.app.clockpackage",
+        // Facebook Messenger
         "messenger" to "com.facebook.orca",
         "মেসেঞ্জার" to "com.facebook.orca",
+        // Twitter/X
         "twitter" to "com.twitter.android",
         "x" to "com.twitter.android",
+        "টুইটার" to "com.twitter.android",
+        // TikTok
         "tiktok" to "com.zhiliaoapp.musically",
         "টিকটক" to "com.zhiliaoapp.musically",
+        // Spotify
         "spotify" to "com.spotify.music",
         "স্পটিফাই" to "com.spotify.music",
-        "phone" to "com.android.dialer",
-        "ফোন" to "com.android.dialer",
-        "dialer" to "com.android.dialer",
+        // Samsung Phone/Dialer
+        "phone" to "com.samsung.android.dialer",
+        "ফোন" to "com.samsung.android.dialer",
+        "dialer" to "com.samsung.android.dialer",
+        "ডায়ালার" to "com.samsung.android.dialer",
+        "কল" to "com.samsung.android.dialer",
+        // Gmail
         "gmail" to "com.google.android.gm",
         "জিমেইল" to "com.google.android.gm",
+        // Play Store
         "play store" to "com.android.vending",
         "প্লে স্টোর" to "com.android.vending",
-        "file manager" to "com.google.android.documentsui",
-        "files" to "com.google.android.documentsui",
-        "ফাইল" to "com.google.android.documentsui",
+        // Samsung My Files
+        "file manager" to "com.sec.android.app.myfiles",
+        "files" to "com.sec.android.app.myfiles",
+        "ফাইল" to "com.sec.android.app.myfiles",
+        "my files" to "com.sec.android.app.myfiles",
+        "মাই ফাইলস" to "com.sec.android.app.myfiles",
+        // Samsung Internet
+        "samsung internet" to "com.sec.android.app.sbrowser",
+        "samsung browser" to "com.sec.android.app.sbrowser",
+        "স্যামসাং ইন্টারনেট" to "com.sec.android.app.sbrowser",
+        // Samsung Messages
+        "messages" to "com.samsung.android.messaging",
+        "মেসেজ" to "com.samsung.android.messaging",
+        "sms" to "com.samsung.android.messaging",
+        "এসএমএস" to "com.samsung.android.messaging",
+        // Samsung Contacts
+        "contacts" to "com.samsung.android.contacts",
+        "কন্টাক্টস" to "com.samsung.android.contacts",
+        // Samsung Calendar
+        "calendar" to "com.samsung.android.calendar",
+        "ক্যালেন্ডার" to "com.samsung.android.calendar",
+        // Samsung Notes
+        "notes" to "com.samsung.android.app.notes",
+        "নোটস" to "com.samsung.android.app.notes",
+        "samsung notes" to "com.samsung.android.app.notes",
+        // Samsung Email
+        "email" to "com.samsung.android.email.provider",
+        "ইমেইল" to "com.samsung.android.email.provider",
+        // Google app
+        "google" to "com.google.android.googlequicksearchbox",
+        "গুগল" to "com.google.android.googlequicksearchbox",
+        // Netflix
+        "netflix" to "com.netflix.mediaclient",
+        "নেটফ্লিক্স" to "com.netflix.mediaclient",
+        // Snapchat
+        "snapchat" to "com.snapchat.android",
+        "স্ন্যাপচ্যাট" to "com.snapchat.android",
+        // LinkedIn
+        "linkedin" to "com.linkedin.android",
+        "লিংকডইন" to "com.linkedin.android",
+        // Pinterest
+        "pinterest" to "com.pinterest",
+        // Amazon
+        "amazon" to "com.amazon.mShop.android.shopping",
+        "আমাজন" to "com.amazon.mShop.android.shopping",
+        // Daraz
+        "daraz" to "com.daraz.android",
+        "দারাজ" to "com.daraz.android",
+        // bKash
+        "bkash" to "com.bKash.customerapp",
+        "বিকাশ" to "com.bKash.customerapp",
+        // Nagad
+        "nagad" to "com.konasl.nagad",
+        "নগদ" to "com.konasl.nagad",
+        // Imo
+        "imo" to "com.imo.android.imoim",
+        "ইমো" to "com.imo.android.imoim",
+        // Viber
+        "viber" to "com.viber.voip",
+        "ভাইবার" to "com.viber.voip",
+        // Zoom
+        "zoom" to "us.zoom.videomeetings",
+        "জুম" to "us.zoom.videomeetings",
+    )
+
+    // Fallback package lists (Samsung → generic)
+    private val fallbackPackages = mapOf(
+        "com.sec.android.app.camera" to listOf("com.android.camera", "com.android.camera2", "com.google.android.GoogleCamera"),
+        "com.sec.android.app.popupcalculator" to listOf("com.google.android.calculator", "com.android.calculator2"),
+        "com.sec.android.gallery3d" to listOf("com.google.android.apps.photos"),
+        "com.sec.android.app.clockpackage" to listOf("com.google.android.deskclock"),
+        "com.samsung.android.dialer" to listOf("com.android.dialer", "com.google.android.dialer"),
+        "com.sec.android.app.myfiles" to listOf("com.google.android.documentsui"),
+        "com.samsung.android.messaging" to listOf("com.google.android.apps.messaging", "com.android.mms"),
+        "com.samsung.android.contacts" to listOf("com.google.android.contacts", "com.android.contacts"),
+        "com.samsung.android.calendar" to listOf("com.google.android.calendar"),
     )
 
     suspend fun acknowledge(text: String) {
@@ -90,73 +197,71 @@ class CommandProcessor(private val context: Context) {
         if (input.isEmpty()) return
         val lower = input.lowercase()
 
-        // Save user message
         saveMessage("user", input)
 
         try {
             when {
-                // 1. Stop / Sleep commands
                 isStopCommand(lower) -> {
                     reply("ঠিক আছে Boss, আমি নীরব মোডে যাচ্ছি।")
                     JarvisForegroundService.instance?.stopSpeechRecognition()
                 }
 
-                // 2. Wake word acknowledgment
                 isJustWakeWord(lower) -> {
                     reply("জি Boss, আমি আছি। বলুন কী করব?")
                 }
 
-                // 3. Presence check
                 isPresenceCheck(lower) -> {
                     reply("জি Boss, আমি এখানে আছি। বলুন কী করতে হবে?")
                 }
 
-                // 4. App open commands
                 isAppOpenCommand(lower) -> {
                     handleAppOpen(input, lower)
                 }
 
-                // 5. Screen reading + translation
                 isScreenReadCommand(lower) -> {
                     handleScreenRead(lower)
                 }
 
-                // 6. Volume control
                 isVolumeCommand(lower) -> {
                     handleVolume(lower)
                 }
 
-                // 7. Contact save
                 isContactSaveCommand(lower) -> {
                     handleContactSave(input, lower)
                 }
 
-                // 8. Reminder
                 isReminderCommand(lower) -> {
                     handleReminder(input, lower)
                 }
 
-                // 9. Reminder acknowledgment
                 isReminderAck(lower) -> {
                     handleReminderAck()
                 }
 
-                // 10. Navigation commands
                 isNavCommand(lower) -> {
                     handleNavigation(lower)
                 }
 
-                // 11. Type text command
+                isSendCommand(lower) -> {
+                    handleSend(input, lower)
+                }
+
+                isSearchCommand(lower) -> {
+                    handleSearch(input, lower)
+                }
+
+                isGoToCommand(lower) -> {
+                    handleGoTo(input, lower)
+                }
+
                 isTypeCommand(lower) -> {
                     handleTypeText(input, lower)
                 }
 
-                // 12. Click / Tap command
                 isClickCommand(lower) -> {
                     handleClick(input, lower)
                 }
 
-                // 13. Phone lock
                 isLockCommand(lower) -> {
                     reply("Boss, ফোনের স্ক্রিন লক করে দিচ্ছি।")
                     JarvisAccessibilityService.instance?.performGlobalAction(
@@ -164,13 +269,12 @@ class CommandProcessor(private val context: Context) {
                     )
                 }
 
-                // 14. General AI question
                 else -> {
                     handleAiQuestion(input)
                 }
             }
         } catch (e: Exception) {
-            Log.e("CommandProcessor", "Error processing command", e)
+            Log.e(TAG, "Error processing command", e)
             reply("Boss, একটু সমস্যা হচ্ছে। আবার চেষ্টা করুন।")
         }
     }
@@ -247,6 +351,30 @@ class CommandProcessor(private val context: Context) {
                 lower.contains("নোটিফিকেশন") || lower.contains("notification")
     }
 
+    private fun isSendCommand(lower: String): Boolean {
+        return lower.contains("সেন্ড কর") || lower.contains("পাঠাও") ||
+                lower.contains("পাঠিয়ে দাও") || lower.contains("send it") ||
+                lower.contains("send koro") || lower.contains("পাঠাও") ||
+                lower == "সেন্ড" || lower == "send" || lower.contains("সেন্ড করো") ||
+                lower.contains("পাঠানো")
+    }
+
+    private fun isSearchCommand(lower: String): Boolean {
+        return lower.contains("সার্চ কর") || lower.contains("সার্চ করো") ||
+                lower.contains("খুঁজো") || lower.contains("খোঁজো") ||
+                lower.contains("search for") || lower.contains("search ") ||
+                lower.contains("ফাইন্ড কর")
+    }
+
+    private fun isGoToCommand(lower: String): Boolean {
+        return lower.contains("ঢুকো") || lower.contains("ঢোকো") ||
+                lower.contains("যাও") || lower.contains("go to ") ||
+                lower.contains("এ যাও") || lower.contains("তে যাও") ||
+                lower.contains("enter ") || lower.contains("ঢুকে") ||
+                lower.contains("ওপেনে") || lower.contains("তে ঢুকো") ||
+                lower.contains("এ ঢুকো")
+    }
+
     private fun isTypeCommand(lower: String): Boolean {
         return lower.contains("লিখো") || lower.contains("লেখো") ||
                 lower.contains("type ") || lower.contains("টাইপ কর")
@@ -270,18 +398,7 @@ class CommandProcessor(private val context: Context) {
         val packageName = findPackageName(appName)
 
         if (packageName != null) {
-            val success = JarvisAccessibilityService.instance?.openApp(packageName)
-                ?: run {
-                    // Fallback: use Intent directly
-                    try {
-                        val intent = context.packageManager.getLaunchIntentForPackage(packageName)
-                        if (intent != null) {
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            context.startActivity(intent)
-                            true
-                        } else false
-                    } catch (e: Exception) { false }
-                }
+            val success = tryOpenPackage(packageName)
             if (success) {
                 reply("$appName ওপেন করেছি Boss। এখন কী করব?")
             } else {
@@ -290,6 +407,34 @@ class CommandProcessor(private val context: Context) {
         } else {
             reply("Boss, $appName নামের অ্যাপটি চিনতে পারছি না। পুরো নামটা বলুন।")
         }
+    }
+
+    private fun tryOpenPackage(packageName: String): Boolean {
+        val service = JarvisAccessibilityService.instance
+        if (service != null && service.openApp(packageName)) return true
+
+        // Try fallback packages
+        fallbackPackages[packageName]?.forEach { fallback ->
+            if (service?.openApp(fallback) == true) return true
+            try {
+                val intent = context.packageManager.getLaunchIntentForPackage(fallback)
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(intent)
+                    return true
+                }
+            } catch (_: Exception) {}
+        }
+
+        // Last resort: direct intent
+        return try {
+            val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                true
+            } else false
+        } catch (_: Exception) { false }
     }
 
     private fun extractAppName(input: String, lower: String): String {
@@ -306,15 +451,12 @@ class CommandProcessor(private val context: Context) {
 
     private fun findPackageName(appName: String): String? {
         val lower = appName.lowercase().trim()
-        // Direct match
         appPackages[lower]?.let { return it }
-        // Partial match
         for ((key, pkg) in appPackages) {
             if (lower.contains(key) || key.contains(lower)) {
                 return pkg
             }
         }
-        // Try to find via PackageManager
         return try {
             val intent = Intent(Intent.ACTION_MAIN).apply {
                 addCategory(Intent.CATEGORY_LAUNCHER)
@@ -327,8 +469,117 @@ class CommandProcessor(private val context: Context) {
                 }
             }
             null
-        } catch (e: Exception) {
-            null
+        } catch (_: Exception) { null }
+    }
+
+    private suspend fun handleGoTo(input: String, lower: String) {
+        val target = extractGoToTarget(input, lower)
+        if (target.isBlank()) {
+            reply("Boss, কোথায় যাব বলুন।")
+            return
+        }
+
+        updateOverlay("\"$target\" খুঁজছি...")
+        val service = JarvisAccessibilityService.instance
+        if (service == null) {
+            reply("Boss, Accessibility Service চালু নেই। সেটিংস থেকে চালু করুন।")
+            return
+        }
+
+        val found = withContext(Dispatchers.IO) {
+            service.searchAndClick(target)
+        }
+        if (found) {
+            reply("\"$target\" এ গেছি Boss। এখন কী করব?")
+        } else {
+            // Try via search field
+            val searched = trySearchInCurrentApp(service, target)
+            if (searched) {
+                reply("\"$target\" সার্চ করে পেয়েছি Boss।")
+            } else {
+                reply("Boss, \"$target\" খুঁজে পাচ্ছি না স্ক্রিনে। নামটা চেক করুন।")
+            }
+        }
+    }
+
+    private fun extractGoToTarget(input: String, lower: String): String {
+        val patterns = listOf(
+            "ঢুকো ", "ঢোকো ", "যাও ", "go to ", "enter ",
+            "এ ঢুকো", "তে ঢুকো", "এ যাও", "তে যাও",
+            "ঢুকো", "ঢোকো", "যাও", "ঢুকে",
+        )
+        var cleaned = input
+        for (p in patterns) {
+            cleaned = cleaned.replace(p, " ", ignoreCase = true)
+        }
+        return cleaned.trim()
+    }
+
+    private suspend fun handleSearch(input: String, lower: String) {
+        val query = extractSearchQuery(input, lower)
+        if (query.isBlank()) {
+            reply("Boss, কী সার্চ করব বলুন।")
+            return
+        }
+
+        val service = JarvisAccessibilityService.instance
+        if (service == null) {
+            reply("Boss, Accessibility Service চালু নেই।")
+            return
+        }
+
+        updateOverlay("\"$query\" সার্চ করছি...")
+
+        val success = trySearchInCurrentApp(service, query)
+        if (success) {
+            reply("\"$query\" সার্চ করেছি Boss।")
+        } else {
+            reply("Boss, সার্চ ফিল্ড পাচ্ছি না এই অ্যাপে।")
+        }
+    }
+
+    private suspend fun trySearchInCurrentApp(service: JarvisAccessibilityService, query: String): Boolean {
+        return withContext(Dispatchers.IO) {
+            if (service.clickSearchField()) {
+                Thread.sleep(500)
+                if (service.performTypeText(query)) {
+                    Thread.sleep(800)
+                    if (service.performClickOnText(query)) {
+                        return@withContext true
+                    }
+                    return@withContext true
+                }
+            }
+            false
+        }
+    }
+
+    private fun extractSearchQuery(input: String, lower: String): String {
+        val patterns = listOf(
+            "সার্চ করো ", "সার্চ কর ", "খুঁজো ", "খোঁজো ",
+            "search for ", "search ", "ফাইন্ড করো ", "ফাইন্ড কর "
+        )
+        var cleaned = input
+        for (p in patterns) {
+            cleaned = cleaned.replace(p, "", ignoreCase = true)
+        }
+        return cleaned.trim()
+    }
+
+    private suspend fun handleSend(input: String, lower: String) {
+        val service = JarvisAccessibilityService.instance
+        if (service == null) {
+            reply("Boss, Accessibility Service চালু নেই।")
+            return
+        }
+
+        val success = withContext(Dispatchers.IO) {
+            service.clickSendButton()
+        }
+        if (success) {
+            reply("সেন্ড করে দিয়েছি Boss।")
+        } else {
+            reply("Boss, সেন্ড বাটন পাচ্ছি না।")
         }
     }
 
@@ -383,7 +634,7 @@ class CommandProcessor(private val context: Context) {
                     sb.toString().trim().ifEmpty { null }
                 } else null
             } catch (e: Exception) {
-                Log.e("CommandProcessor", "Translation error", e)
+                Log.e(TAG, "Translation error", e)
                 null
             }
         }
@@ -422,30 +673,24 @@ class CommandProcessor(private val context: Context) {
     }
 
     private suspend fun handleContactSave(input: String, lower: String) {
-        // Extract phone number from input or screen
         val numberRegex = Regex("[+]?[0-9\\s\\-]{7,15}")
         var number = numberRegex.find(input)?.value?.replace(Regex("[\\s\\-]"), "")
 
         if (number == null) {
-            // Try to find number from screen text
             val screenText = JarvisAccessibilityService.currentScreenText
             number = numberRegex.find(screenText)?.value?.replace(Regex("[\\s\\-]"), "")
         }
 
         if (number == null) {
             reply("Boss, কোনো নাম্বার পাচ্ছি না। নাম্বারটা বলুন।")
-            // Set a flag to expect a number next — simplified here
             return
         }
 
         reply("Boss, নাম্বার পেয়েছি: $number। কন্টাক্টের নাম কী দেব?")
-        // The next voice input will be treated as the contact name
-        // For now, save with a placeholder or wait for next input
         pendingContactNumber = number
     }
 
     private suspend fun handleReminder(input: String, lower: String) {
-        // Parse time duration
         val durationMs = parseTimeDuration(lower)
         val reminderText = extractReminderText(input)
 
@@ -457,15 +702,11 @@ class CommandProcessor(private val context: Context) {
                 isAcknowledged = false,
                 createdAt = System.currentTimeMillis()
             )
-            withContext(Dispatchers.IO) {
-                db.reminderDao().insert(reminder)
-            }
+            withContext(Dispatchers.IO) { db.reminderDao().insert(reminder) }
             reminderManager.scheduleReminder(reminder)
-
             val timeDesc = formatDuration(durationMs)
             reply("Done Boss! $timeDesc পরে মনে করিয়ে দেব: \"$reminderText\"")
         } else if (reminderText.isNotEmpty()) {
-            // Default to 1 hour if no time specified
             val triggerTime = System.currentTimeMillis() + 3600_000L
             val reminder = Reminder(
                 text = reminderText,
@@ -473,9 +714,7 @@ class CommandProcessor(private val context: Context) {
                 isAcknowledged = false,
                 createdAt = System.currentTimeMillis()
             )
-            withContext(Dispatchers.IO) {
-                db.reminderDao().insert(reminder)
-            }
+            withContext(Dispatchers.IO) { db.reminderDao().insert(reminder) }
             reminderManager.scheduleReminder(reminder)
             reply("Boss, ১ ঘণ্টা পরে মনে করিয়ে দেব: \"$reminderText\"। সময় ঠিক না হলে বলুন।")
         } else {
@@ -485,32 +724,22 @@ class CommandProcessor(private val context: Context) {
 
     private fun parseTimeDuration(lower: String): Long {
         var totalMs = 0L
-
-        // Minutes
         val minRegex = Regex("(\\d+)\\s*(মিনিট|minute|min)")
         minRegex.find(lower)?.let {
             totalMs += it.groupValues[1].toLongOrNull()?.times(60_000L) ?: 0
         }
-
-        // Hours
         val hourRegex = Regex("(\\d+)\\s*(ঘণ্টা|ঘন্টা|hour|hr)")
         hourRegex.find(lower)?.let {
             totalMs += it.groupValues[1].toLongOrNull()?.times(3600_000L) ?: 0
         }
-
-        // Days
         val dayRegex = Regex("(\\d+)\\s*(দিন|day)")
         dayRegex.find(lower)?.let {
             totalMs += it.groupValues[1].toLongOrNull()?.times(86_400_000L) ?: 0
         }
-
-        // Weeks
         val weekRegex = Regex("(\\d+)\\s*(সপ্তাহ|week)")
         weekRegex.find(lower)?.let {
             totalMs += it.groupValues[1].toLongOrNull()?.times(604_800_000L) ?: 0
         }
-
-        // Bengali number words
         if (lower.contains("এক সপ্তাহ") || lower.contains("১ সপ্তাহ") || lower.contains("1 week")) {
             totalMs = 604_800_000L
         }
@@ -520,7 +749,6 @@ class CommandProcessor(private val context: Context) {
         if (lower.contains("আগামীকাল") || lower.contains("tomorrow")) {
             totalMs = 86_400_000L
         }
-
         return totalMs
     }
 
@@ -533,7 +761,6 @@ class CommandProcessor(private val context: Context) {
         for (p in patterns) {
             text = text.replace(p, "", ignoreCase = true)
         }
-        // Remove time parts
         text = text.replace(Regex("(\\d+\\s*(সপ্তাহ|দিন|ঘণ্টা|ঘন্টা|মিনিট|week|day|hour|minute|min|hr)\\s*পরে?\\s*)"), "")
         text = text.replace(Regex("(এক সপ্তাহ পরে?|আগামীকাল|আধা ঘণ্টা পরে?)\\s*"), "")
         return text.replace(Regex("^[—\\-–:]+"), "").trim()
@@ -552,7 +779,6 @@ class CommandProcessor(private val context: Context) {
     private suspend fun handleReminderAck() {
         withContext(Dispatchers.IO) {
             val active = db.reminderDao().getActiveReminders()
-            // Mark the most recent triggered reminder as acknowledged
             val triggered = active.filter { it.triggerTimeMillis <= System.currentTimeMillis() }
             for (r in triggered) {
                 db.reminderDao().markAcknowledged(r.id)
@@ -597,11 +823,17 @@ class CommandProcessor(private val context: Context) {
         textToType = textToType.trim().removeSurrounding("\"").removeSurrounding("'")
 
         if (textToType.isNotEmpty()) {
-            val success = JarvisAccessibilityService.instance?.performTypeText(textToType) ?: false
+            val service = JarvisAccessibilityService.instance
+            val success = service?.tapEditFieldAndType(textToType) ?: false
             if (success) {
                 reply("লিখে দিয়েছি Boss।")
             } else {
-                reply("Boss, টেক্সট ফিল্ড পাচ্ছি না। আগে যেখানে লিখতে চান সেখানে ট্যাপ করুন।")
+                val retrySuccess = service?.performTypeText(textToType) ?: false
+                if (retrySuccess) {
+                    reply("লিখে দিয়েছি Boss।")
+                } else {
+                    reply("Boss, টেক্সট ফিল্ড পাচ্ছি না। আগে যেখানে লিখতে চান সেখানে ট্যাপ করুন।")
+                }
             }
         } else {
             reply("Boss, কী লিখব বলুন।")
@@ -617,7 +849,7 @@ class CommandProcessor(private val context: Context) {
         target = target.trim().removeSurrounding("\"").removeSurrounding("'")
 
         if (target.isNotEmpty()) {
-            val success = JarvisAccessibilityService.instance?.performClickOnText(target) ?: false
+            val success = JarvisAccessibilityService.instance?.searchAndClick(target) ?: false
             if (success) {
                 reply("\"$target\" এ ক্লিক করেছি Boss।")
             } else {
@@ -648,7 +880,7 @@ class CommandProcessor(private val context: Context) {
         try {
             voiceEngine.speak(text)
         } catch (e: Exception) {
-            Log.e("CommandProcessor", "Voice engine error", e)
+            Log.e(TAG, "Voice engine error", e)
         }
     }
 
@@ -673,6 +905,7 @@ class CommandProcessor(private val context: Context) {
     }
 
     companion object {
+        private const val TAG = "CommandProcessor"
         var pendingContactNumber: String? = null
     }
 }

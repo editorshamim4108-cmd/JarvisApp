@@ -236,25 +236,37 @@ class JarvisForegroundService : Service() {
                     override fun onResults(results: android.os.Bundle?) {
                         isListening = false
                         val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        val text = matches?.firstOrNull()?.trim() ?: ""
-
-                        if (text.isEmpty()) {
+                        if (matches.isNullOrEmpty()) {
                             restartCurrentMode()
                             return
                         }
 
+                        Log.d(TAG, "All results: $matches")
+
                         when (currentListenMode) {
                             ListenMode.WAKE_WORD -> {
-                                val lower = text.lowercase()
-                                Log.d(TAG, "Wake word check: heard='$lower'")
-                                if (containsWakeWord(lower)) {
-                                    val command = extractCommandAfterWakeWord(text)
+                                var wakeMatch: String? = null
+                                for (m in matches) {
+                                    val lower = m.lowercase().trim()
+                                    if (containsWakeWord(lower)) {
+                                        wakeMatch = m.trim()
+                                        break
+                                    }
+                                }
+                                if (wakeMatch != null) {
+                                    Log.d(TAG, "Wake word found in: '$wakeMatch'")
+                                    val command = extractCommandAfterWakeWord(wakeMatch)
                                     onWakeWordDetected(command)
                                 } else {
                                     restartCurrentMode()
                                 }
                             }
                             ListenMode.COMMAND -> {
+                                val text = matches.firstOrNull()?.trim() ?: ""
+                                if (text.isEmpty()) {
+                                    restartCurrentMode()
+                                    return
+                                }
                                 lastHeardText = text
                                 textListeners.forEach { it(text) }
                                 stopCurrentListening()
@@ -273,16 +285,18 @@ class JarvisForegroundService : Service() {
                     }
 
                     override fun onPartialResults(partialResults: android.os.Bundle?) {
-                        val partial = partialResults
+                        val partials = partialResults
                             ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                            ?.firstOrNull()
-                        if (!partial.isNullOrEmpty()) {
+                        if (!partials.isNullOrEmpty()) {
                             if (currentListenMode == ListenMode.COMMAND) {
-                                textListeners.forEach { it(partial) }
+                                textListeners.forEach { it(partials.first()) }
                             } else {
-                                val lower = partial.lowercase()
-                                if (containsWakeWord(lower)) {
-                                    Log.d(TAG, "Wake word in partial: '$lower'")
+                                for (partial in partials) {
+                                    val lower = partial.lowercase()
+                                    if (containsWakeWord(lower)) {
+                                        Log.d(TAG, "Wake word in partial: '$lower'")
+                                        break
+                                    }
                                 }
                             }
                         }
@@ -296,8 +310,11 @@ class JarvisForegroundService : Service() {
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, locale)
+                    putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf(locale, "en-US"))
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
 
                     if (currentListenMode == ListenMode.WAKE_WORD) {
                         putExtra("android.speech.extras.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", 10000L)
