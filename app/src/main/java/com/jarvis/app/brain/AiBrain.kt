@@ -22,19 +22,25 @@ class AiBrain {
 
     private val chatHistory = mutableListOf<Pair<String, String>>()
 
-    private val models = listOf("openai", "openai-fast")
+    var claudeApiKey: String = ""
 
     suspend fun ask(userInput: String, screenContext: String, locale: String): String {
         return withContext(Dispatchers.IO) {
             val isHindi = locale.startsWith("hi")
             val systemPrompt = buildSystemPrompt(isHindi, screenContext)
-            val messages = buildMessages(systemPrompt, userInput)
 
             var response: String? = null
 
-            for (model in models) {
-                response = tryPollinationsPost(model, messages)
-                if (response != null) break
+            if (claudeApiKey.isNotBlank()) {
+                response = tryClaudeApi(systemPrompt, userInput)
+            }
+
+            if (response == null) {
+                val messages = buildOpenAiMessages(systemPrompt, userInput)
+                for (model in listOf("openai", "openai-fast")) {
+                    response = tryPollinationsPost(model, messages)
+                    if (response != null) break
+                }
             }
 
             if (response != null) {
@@ -45,6 +51,61 @@ class AiBrain {
             } else {
                 "Boss, AI সার্ভার এখন ব্যস্ত আছে। একটু পরে আবার জিজ্ঞাসা করুন।"
             }
+        }
+    }
+
+    private fun tryClaudeApi(systemPrompt: String, userInput: String): String? {
+        return try {
+            val messages = JSONArray()
+            val recentHistory = chatHistory.takeLast(8)
+            for ((role, content) in recentHistory) {
+                messages.put(JSONObject().apply {
+                    put("role", role)
+                    put("content", content)
+                })
+            }
+            messages.put(JSONObject().apply {
+                put("role", "user")
+                put("content", userInput)
+            })
+
+            val body = JSONObject().apply {
+                put("model", "claude-haiku-4-0")
+                put("max_tokens", 300)
+                put("system", systemPrompt)
+                put("messages", messages)
+            }
+
+            val request = Request.Builder()
+                .url("https://api.anthropic.com/v1/messages")
+                .addHeader("x-api-key", claudeApiKey)
+                .addHeader("anthropic-version", "2023-06-01")
+                .addHeader("content-type", "application/json")
+                .post(body.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            val response = client.newCall(request).execute()
+            val bodyStr = response.body?.string() ?: ""
+
+            if (!response.isSuccessful) {
+                Log.e(TAG, "Claude error: ${response.code} body=${bodyStr.take(300)}")
+                return null
+            }
+
+            val json = JSONObject(bodyStr)
+            val contentArray = json.optJSONArray("content")
+            if (contentArray != null && contentArray.length() > 0) {
+                contentArray.optJSONObject(0)
+                    ?.optString("text", "")
+                    ?.trim()
+                    ?.ifEmpty { null }
+            } else {
+                Log.e(TAG, "Claude: no content in response")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Claude exception", e)
+            null
         }
     }
 
@@ -75,7 +136,7 @@ class AiBrain {
         }
     }
 
-    private fun buildMessages(systemPrompt: String, userInput: String): JSONArray {
+    private fun buildOpenAiMessages(systemPrompt: String, userInput: String): JSONArray {
         val messages = JSONArray()
         messages.put(JSONObject().apply {
             put("role", "system")

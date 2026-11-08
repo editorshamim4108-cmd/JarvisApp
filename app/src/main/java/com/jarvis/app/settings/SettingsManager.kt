@@ -34,6 +34,9 @@ class SettingsManager(context: Context) {
     fun getKey2(): String = securePrefs.getString(KEY_ELEVENLABS_2, "") ?: ""
     fun setKey2(key: String) = securePrefs.edit().putString(KEY_ELEVENLABS_2, key).apply()
 
+    fun getClaudeApiKey(): String = securePrefs.getString(KEY_CLAUDE_API, "") ?: ""
+    fun setClaudeApiKey(key: String) = securePrefs.edit().putString(KEY_CLAUDE_API, key).apply()
+
     // --- Voice Settings ---
     fun getVoiceId(): String = prefs.getString(KEY_VOICE_ID, DEFAULT_VOICE_ID) ?: DEFAULT_VOICE_ID
     fun setVoiceId(id: String) = prefs.edit().putString(KEY_VOICE_ID, id).apply()
@@ -65,6 +68,7 @@ class SettingsManager(context: Context) {
     companion object {
         private const val KEY_ELEVENLABS_1 = "elevenlabs_key_1"
         private const val KEY_ELEVENLABS_2 = "elevenlabs_key_2"
+        private const val KEY_CLAUDE_API = "claude_api_key"
         private const val KEY_VOICE_ID = "voice_id"
         private const val KEY_SPEED = "voice_speed"
         private const val KEY_PREFERRED_MODE = "preferred_mode"

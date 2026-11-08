@@ -645,6 +645,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun SettingsBottomSheet(onDismiss: () -> Unit) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        var claudeKey by remember { mutableStateOf(settings.getClaudeApiKey()) }
         var key1 by remember { mutableStateOf(settings.getKey1()) }
         var key2 by remember { mutableStateOf(settings.getKey2()) }
         var speed by remember { mutableFloatStateOf(settings.getSpeed()) }
@@ -655,6 +656,7 @@ class MainActivity : ComponentActivity() {
         ModalBottomSheet(
             onDismissRequest = {
                 // Save on dismiss
+                settings.setClaudeApiKey(claudeKey)
                 settings.setKey1(key1)
                 settings.setKey2(key2)
                 settings.setSpeed(speed)
@@ -678,6 +680,26 @@ class MainActivity : ComponentActivity() {
                         color = CyberCyan,
                         fontSize = 14.sp
                     )
+                }
+
+                // AI Brain
+                item {
+                    SettingsCard("AI Brain (Claude API)") {
+                        Text(
+                            if (claudeKey.isNotBlank()) "Claude Haiku — Active" else "Free AI (Pollinations)",
+                            fontSize = 10.sp,
+                            color = if (claudeKey.isNotBlank()) StatusGreen else CyberCyan,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        SettingsTextField("Claude API Key (console.anthropic.com)", claudeKey) { claudeKey = it }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Key দিলে Claude AI ব্যবহার হবে, না দিলে Free AI চলবে",
+                            fontSize = 10.sp,
+                            color = TextGray
+                        )
+                    }
                 }
 
                 // Voice Engine
