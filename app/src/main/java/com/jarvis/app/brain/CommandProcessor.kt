@@ -1,10 +1,8 @@
 package com.jarvis.app.brain
 
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
-import android.provider.ContactsContract
 import android.util.Log
 import com.jarvis.app.data.AppDatabase
 import com.jarvis.app.data.ConversationMessage
@@ -28,163 +26,62 @@ class CommandProcessor(private val context: Context) {
     private val reminderManager = ReminderManager(context)
 
     private val appPackages = mapOf(
-        // WhatsApp variants
-        "whatsapp" to "com.whatsapp",
-        "whats app" to "com.whatsapp",
-        "watts app" to "com.whatsapp",
-        "whatapp" to "com.whatsapp",
-        "হোয়াটসঅ্যাপ" to "com.whatsapp",
-        "হোয়াটস অ্যাপ" to "com.whatsapp",
-        "ওয়াটসঅ্যাপ" to "com.whatsapp",
-        "ওয়াটস অ্যাপ" to "com.whatsapp",
-        // YouTube
-        "youtube" to "com.google.android.youtube",
-        "ইউটিউব" to "com.google.android.youtube",
-        // Facebook
-        "facebook" to "com.facebook.katana",
-        "ফেসবুক" to "com.facebook.katana",
+        "whatsapp" to "com.whatsapp", "whats app" to "com.whatsapp",
+        "watts app" to "com.whatsapp", "whatapp" to "com.whatsapp",
+        "হোয়াটসঅ্যাপ" to "com.whatsapp", "হোয়াটস অ্যাপ" to "com.whatsapp",
+        "ওয়াটসঅ্যাপ" to "com.whatsapp", "ওয়াটস অ্যাপ" to "com.whatsapp",
+        "youtube" to "com.google.android.youtube", "ইউটিউব" to "com.google.android.youtube",
+        "facebook" to "com.facebook.katana", "ফেসবুক" to "com.facebook.katana",
         "fb" to "com.facebook.katana",
-        // Instagram
-        "instagram" to "com.instagram.android",
-        "ইনস্টাগ্রাম" to "com.instagram.android",
+        "instagram" to "com.instagram.android", "ইনস্টাগ্রাম" to "com.instagram.android",
         "ইন্সটা" to "com.instagram.android",
-        // Chrome
-        "chrome" to "com.android.chrome",
-        "ক্রোম" to "com.android.chrome",
-        "google chrome" to "com.android.chrome",
-        // Samsung Camera
-        "camera" to "com.sec.android.app.camera",
-        "ক্যামেরা" to "com.sec.android.app.camera",
-        "samsung camera" to "com.sec.android.app.camera",
-        // Settings
-        "settings" to "com.android.settings",
-        "সেটিংস" to "com.android.settings",
+        "chrome" to "com.android.chrome", "ক্রোম" to "com.android.chrome",
+        "camera" to "com.sec.android.app.camera", "ক্যামেরা" to "com.sec.android.app.camera",
+        "settings" to "com.android.settings", "সেটিংস" to "com.android.settings",
         "সেটিং" to "com.android.settings",
-        // Telegram
-        "telegram" to "org.telegram.messenger",
-        "টেলিগ্রাম" to "org.telegram.messenger",
-        // Maps
-        "maps" to "com.google.android.apps.maps",
-        "ম্যাপ" to "com.google.android.apps.maps",
-        "google maps" to "com.google.android.apps.maps",
-        "গুগল ম্যাপ" to "com.google.android.apps.maps",
-        // Samsung Calculator
-        "calculator" to "com.sec.android.app.popupcalculator",
-        "ক্যালকুলেটর" to "com.sec.android.app.popupcalculator",
-        "samsung calculator" to "com.sec.android.app.popupcalculator",
-        // Samsung Gallery
-        "gallery" to "com.sec.android.gallery3d",
-        "গ্যালারি" to "com.sec.android.gallery3d",
-        "samsung gallery" to "com.sec.android.gallery3d",
-        // Google Photos
-        "photos" to "com.google.android.apps.photos",
-        "ফটোস" to "com.google.android.apps.photos",
-        "google photos" to "com.google.android.apps.photos",
-        // Samsung Clock
-        "clock" to "com.sec.android.app.clockpackage",
-        "ঘড়ি" to "com.sec.android.app.clockpackage",
-        "alarm" to "com.sec.android.app.clockpackage",
-        "অ্যালার্ম" to "com.sec.android.app.clockpackage",
-        // Facebook Messenger
-        "messenger" to "com.facebook.orca",
-        "মেসেঞ্জার" to "com.facebook.orca",
-        // Twitter/X
-        "twitter" to "com.twitter.android",
-        "x" to "com.twitter.android",
-        "টুইটার" to "com.twitter.android",
-        // TikTok
-        "tiktok" to "com.zhiliaoapp.musically",
-        "টিকটক" to "com.zhiliaoapp.musically",
-        // Spotify
-        "spotify" to "com.spotify.music",
-        "স্পটিফাই" to "com.spotify.music",
-        // Samsung Phone/Dialer
-        "phone" to "com.samsung.android.dialer",
-        "ফোন" to "com.samsung.android.dialer",
-        "dialer" to "com.samsung.android.dialer",
-        "ডায়ালার" to "com.samsung.android.dialer",
-        "কল" to "com.samsung.android.dialer",
-        // Gmail
-        "gmail" to "com.google.android.gm",
-        "জিমেইল" to "com.google.android.gm",
-        // Play Store
-        "play store" to "com.android.vending",
-        "প্লে স্টোর" to "com.android.vending",
-        // Samsung My Files
-        "file manager" to "com.sec.android.app.myfiles",
-        "files" to "com.sec.android.app.myfiles",
-        "ফাইল" to "com.sec.android.app.myfiles",
-        "my files" to "com.sec.android.app.myfiles",
-        "মাই ফাইলস" to "com.sec.android.app.myfiles",
-        // Samsung Internet
+        "telegram" to "org.telegram.messenger", "টেলিগ্রাম" to "org.telegram.messenger",
+        "maps" to "com.google.android.apps.maps", "ম্যাপ" to "com.google.android.apps.maps",
+        "google maps" to "com.google.android.apps.maps", "গুগল ম্যাপ" to "com.google.android.apps.maps",
+        "calculator" to "com.sec.android.app.popupcalculator", "ক্যালকুলেটর" to "com.sec.android.app.popupcalculator",
+        "gallery" to "com.sec.android.gallery3d", "গ্যালারি" to "com.sec.android.gallery3d",
+        "photos" to "com.google.android.apps.photos", "ফটোস" to "com.google.android.apps.photos",
+        "clock" to "com.sec.android.app.clockpackage", "ঘড়ি" to "com.sec.android.app.clockpackage",
+        "alarm" to "com.sec.android.app.clockpackage", "অ্যালার্ম" to "com.sec.android.app.clockpackage",
+        "messenger" to "com.facebook.orca", "মেসেঞ্জার" to "com.facebook.orca",
+        "twitter" to "com.twitter.android", "x" to "com.twitter.android",
+        "tiktok" to "com.zhiliaoapp.musically", "টিকটক" to "com.zhiliaoapp.musically",
+        "spotify" to "com.spotify.music", "স্পটিফাই" to "com.spotify.music",
+        "phone" to "com.samsung.android.dialer", "ফোন" to "com.samsung.android.dialer",
+        "dialer" to "com.samsung.android.dialer", "কল" to "com.samsung.android.dialer",
+        "gmail" to "com.google.android.gm", "জিমেইল" to "com.google.android.gm",
+        "play store" to "com.android.vending", "প্লে স্টোর" to "com.android.vending",
+        "file manager" to "com.sec.android.app.myfiles", "files" to "com.sec.android.app.myfiles",
+        "ফাইল" to "com.sec.android.app.myfiles", "my files" to "com.sec.android.app.myfiles",
         "samsung internet" to "com.sec.android.app.sbrowser",
-        "samsung browser" to "com.sec.android.app.sbrowser",
-        "স্যামসাং ইন্টারনেট" to "com.sec.android.app.sbrowser",
-        // Samsung Messages
-        "messages" to "com.samsung.android.messaging",
-        "মেসেজ" to "com.samsung.android.messaging",
+        "messages" to "com.samsung.android.messaging", "মেসেজ" to "com.samsung.android.messaging",
         "sms" to "com.samsung.android.messaging",
-        "এসএমএস" to "com.samsung.android.messaging",
-        // Samsung Contacts
-        "contacts" to "com.samsung.android.contacts",
-        "কন্টাক্টস" to "com.samsung.android.contacts",
-        // Samsung Calendar
-        "calendar" to "com.samsung.android.calendar",
-        "ক্যালেন্ডার" to "com.samsung.android.calendar",
-        // Samsung Notes
-        "notes" to "com.samsung.android.app.notes",
-        "নোটস" to "com.samsung.android.app.notes",
-        "samsung notes" to "com.samsung.android.app.notes",
-        // Samsung Email
-        "email" to "com.samsung.android.email.provider",
-        "ইমেইল" to "com.samsung.android.email.provider",
-        // Google app
-        "google" to "com.google.android.googlequicksearchbox",
-        "গুগল" to "com.google.android.googlequicksearchbox",
-        // Netflix
-        "netflix" to "com.netflix.mediaclient",
-        "নেটফ্লিক্স" to "com.netflix.mediaclient",
-        // Snapchat
-        "snapchat" to "com.snapchat.android",
-        "স্ন্যাপচ্যাট" to "com.snapchat.android",
-        // LinkedIn
-        "linkedin" to "com.linkedin.android",
-        "লিংকডইন" to "com.linkedin.android",
-        // Pinterest
-        "pinterest" to "com.pinterest",
-        // Amazon
-        "amazon" to "com.amazon.mShop.android.shopping",
-        "আমাজন" to "com.amazon.mShop.android.shopping",
-        // Daraz
-        "daraz" to "com.daraz.android",
-        "দারাজ" to "com.daraz.android",
-        // bKash
-        "bkash" to "com.bKash.customerapp",
-        "বিকাশ" to "com.bKash.customerapp",
-        // Nagad
-        "nagad" to "com.konasl.nagad",
-        "নগদ" to "com.konasl.nagad",
-        // Imo
-        "imo" to "com.imo.android.imoim",
-        "ইমো" to "com.imo.android.imoim",
-        // Viber
-        "viber" to "com.viber.voip",
-        "ভাইবার" to "com.viber.voip",
-        // Zoom
-        "zoom" to "us.zoom.videomeetings",
-        "জুম" to "us.zoom.videomeetings",
+        "contacts" to "com.samsung.android.contacts", "কন্টাক্টস" to "com.samsung.android.contacts",
+        "calendar" to "com.samsung.android.calendar", "ক্যালেন্ডার" to "com.samsung.android.calendar",
+        "notes" to "com.samsung.android.app.notes", "নোটস" to "com.samsung.android.app.notes",
+        "google" to "com.google.android.googlequicksearchbox", "গুগল" to "com.google.android.googlequicksearchbox",
+        "netflix" to "com.netflix.mediaclient", "নেটফ্লিক্স" to "com.netflix.mediaclient",
+        "bkash" to "com.bKash.customerapp", "বিকাশ" to "com.bKash.customerapp",
+        "nagad" to "com.konasl.nagad", "নগদ" to "com.konasl.nagad",
+        "imo" to "com.imo.android.imoim", "ইমো" to "com.imo.android.imoim",
+        "viber" to "com.viber.voip", "ভাইবার" to "com.viber.voip",
+        "zoom" to "us.zoom.videomeetings", "জুম" to "us.zoom.videomeetings",
+        "daraz" to "com.daraz.android", "দারাজ" to "com.daraz.android",
     )
 
-    // Fallback package lists (Samsung → generic)
     private val fallbackPackages = mapOf(
-        "com.sec.android.app.camera" to listOf("com.android.camera", "com.android.camera2", "com.google.android.GoogleCamera"),
-        "com.sec.android.app.popupcalculator" to listOf("com.google.android.calculator", "com.android.calculator2"),
+        "com.sec.android.app.camera" to listOf("com.android.camera", "com.android.camera2"),
+        "com.sec.android.app.popupcalculator" to listOf("com.google.android.calculator"),
         "com.sec.android.gallery3d" to listOf("com.google.android.apps.photos"),
         "com.sec.android.app.clockpackage" to listOf("com.google.android.deskclock"),
         "com.samsung.android.dialer" to listOf("com.android.dialer", "com.google.android.dialer"),
         "com.sec.android.app.myfiles" to listOf("com.google.android.documentsui"),
-        "com.samsung.android.messaging" to listOf("com.google.android.apps.messaging", "com.android.mms"),
-        "com.samsung.android.contacts" to listOf("com.google.android.contacts", "com.android.contacts"),
+        "com.samsung.android.messaging" to listOf("com.google.android.apps.messaging"),
+        "com.samsung.android.contacts" to listOf("com.google.android.contacts"),
         "com.samsung.android.calendar" to listOf("com.google.android.calendar"),
     )
 
@@ -202,673 +99,682 @@ class CommandProcessor(private val context: Context) {
         try {
             when {
                 isStopCommand(lower) -> {
-                    reply("ঠিক আছে Boss, আমি নীরব মোডে যাচ্ছি।")
+                    reply("ঠিক আছে Boss, নীরব মোডে যাচ্ছি।")
                     JarvisForegroundService.instance?.stopSpeechRecognition()
                 }
+                isJustWakeWord(lower) -> reply("জি Boss, আমি আছি। বলুন কী করব?")
+                isPresenceCheck(lower) -> reply("জি Boss, আমি এখানে আছি।")
 
-                isJustWakeWord(lower) -> {
-                    reply("জি Boss, আমি আছি। বলুন কী করব?")
-                }
+                // ★ COMPOUND: "YouTube ওপেন করে গান প্লে করো" or "WhatsApp খুলে মেসেজ পাঠাও"
+                isCompoundCommand(lower) -> handleCompoundCommand(input, lower)
 
-                isPresenceCheck(lower) -> {
-                    reply("জি Boss, আমি এখানে আছি। বলুন কী করতে হবে?")
-                }
+                // ★ MESSAGING: "SK Bazar কে WhatsApp এ Hello পাঠাও"
+                isMessageCommand(lower) -> handleMessageCommand(input, lower)
 
-                isAppOpenCommand(lower) -> {
-                    handleAppOpen(input, lower)
-                }
+                // ★ PLAY: "Arijit Singh এর গান প্লে করো"
+                isPlayCommand(lower) -> handlePlayCommand(input, lower)
 
-                isScreenReadCommand(lower) -> {
-                    handleScreenRead(lower)
-                }
+                // Simple app open
+                isAppOpenCommand(lower) -> handleAppOpen(input, lower)
 
-                isVolumeCommand(lower) -> {
-                    handleVolume(lower)
-                }
+                // In-app actions (when app is already open)
+                isGoToCommand(lower) -> handleGoTo(input, lower)
+                isSendCommand(lower) -> handleSend()
+                isSearchCommand(lower) -> handleSearch(input, lower)
+                isTypeCommand(lower) -> handleTypeText(input, lower)
+                isClickCommand(lower) -> handleClick(input, lower)
 
-                isContactSaveCommand(lower) -> {
-                    handleContactSave(input, lower)
-                }
-
-                isReminderCommand(lower) -> {
-                    handleReminder(input, lower)
-                }
-
-                isReminderAck(lower) -> {
-                    handleReminderAck()
-                }
-
-                isNavCommand(lower) -> {
-                    handleNavigation(lower)
-                }
-
-                isSendCommand(lower) -> {
-                    handleSend(input, lower)
-                }
-
-                isSearchCommand(lower) -> {
-                    handleSearch(input, lower)
-                }
-
-                isGoToCommand(lower) -> {
-                    handleGoTo(input, lower)
-                }
-
-                isTypeCommand(lower) -> {
-                    handleTypeText(input, lower)
-                }
-
-                isClickCommand(lower) -> {
-                    handleClick(input, lower)
-                }
-
+                // Utility
+                isScreenReadCommand(lower) -> handleScreenRead(lower)
+                isVolumeCommand(lower) -> handleVolume(lower)
+                isNavCommand(lower) -> handleNavigation(lower)
+                isReminderCommand(lower) -> handleReminder(input, lower)
+                isReminderAck(lower) -> handleReminderAck()
+                isContactSaveCommand(lower) -> handleContactSave(input, lower)
                 isLockCommand(lower) -> {
-                    reply("Boss, ফোনের স্ক্রিন লক করে দিচ্ছি।")
+                    reply("Boss, স্ক্রিন লক করছি।")
                     JarvisAccessibilityService.instance?.performGlobalAction(
                         android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN
                     )
                 }
 
-                else -> {
-                    handleAiQuestion(input)
-                }
+                // AI fallback
+                else -> handleAiQuestion(input)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error processing command", e)
-            reply("Boss, একটু সমস্যা হচ্ছে। আবার চেষ্টা করুন।")
+            Log.e(TAG, "Error", e)
+            reply("Boss, সমস্যা হচ্ছে। আবার বলুন।")
         }
     }
 
-    // --- Intent Detection ---
+    // ===================== INTENT DETECTION =====================
 
-    private fun isStopCommand(lower: String): Boolean {
-        return lower.contains("অফ হয়ে যাও") || lower.contains("ঘুমিয়ে পড়ো") ||
-                lower.contains("stop listening") || lower.contains("চুপ থাকো") ||
-                lower.contains("বন্ধ হও") || lower.contains("নীরব") ||
-                lower.contains("সাইলেন্ট মোড") || lower.contains("silent mode") ||
-                lower.contains("go to sleep") || lower.contains("ঘুমাও") ||
-                lower.contains("থামো") || lower.contains("বিশ্রাম") ||
-                lower.contains("যাও এখন") || lower.contains("বন্ধ করো") ||
-                lower.contains("stop jarvis") || lower.contains("জার্ভিস বন্ধ") ||
-                lower.contains("জার্ভিস থামো")
+    private fun isStopCommand(l: String) = l.contains("সাইলেন্ট মোড") || l.contains("silent mode") ||
+            l.contains("থামো") || l.contains("বন্ধ করো") || l.contains("stop") ||
+            l.contains("ঘুমাও") || l.contains("চুপ থাকো") || l.contains("নীরব") ||
+            l.contains("অফ হয়ে যাও") || l.contains("বিশ্রাম") || l.contains("ঘুমিয়ে পড়ো")
+
+    private fun isJustWakeWord(l: String) =
+        l in listOf("hey jarvis", "হেই জার্ভিস", "জার্ভিস", "jarvis", "হে জার্ভিস")
+
+    private fun isPresenceCheck(l: String) =
+        l.contains("তুমি আছো") || l.contains("তুমি কি আছো") || l == "আছো?" || l.contains("are you there")
+
+    private fun isCompoundCommand(l: String): Boolean {
+        val hasSplit = l.contains("ওপেন করে") || l.contains("খুলে") || l.contains("চালু করে") ||
+                l.contains("open ") && (l.contains(" and ") || l.contains(" then "))
+        val hasAction = l.contains("প্লে") || l.contains("play") || l.contains("সার্চ") ||
+                l.contains("search") || l.contains("পাঠাও") || l.contains("send") ||
+                l.contains("লিখো") || l.contains("ঢুকো") || l.contains("গান") ||
+                l.contains("ভিডিও") || l.contains("video") || l.contains("মেসেজ") ||
+                l.contains("খুঁজো")
+        return hasSplit && hasAction
     }
 
-    private fun isJustWakeWord(lower: String): Boolean {
-        return lower in listOf("hey jarvis", "হেই জার্ভিস", "জার্ভিস", "jarvis", "হে জার্ভিস")
+    private fun isMessageCommand(l: String): Boolean {
+        val hasMsg = l.contains("মেসেজ") || l.contains("message") || l.contains("পাঠাও") ||
+                l.contains("পাঠিয়ে দাও") || l.contains("send")
+        val hasTarget = l.contains("কে ") || l.contains(" to ")
+        return hasMsg && hasTarget
     }
 
-    private fun isPresenceCheck(lower: String): Boolean {
-        return lower.contains("তুমি আছো") || lower.contains("তুমি কি আছো") ||
-                lower == "আছো?" || lower.contains("are you there")
+    private fun isPlayCommand(l: String): Boolean {
+        return (l.contains("প্লে কর") || l.contains("play ") || l.contains("বাজাও") ||
+                l.contains("চালাও") || l.contains("গান") || l.contains("song") ||
+                l.contains("ভিডিও") || l.contains("video")) &&
+                !isAppOpenCommand(l)
     }
 
-    private fun isAppOpenCommand(lower: String): Boolean {
-        return lower.contains("ওপেন কর") || lower.contains("খোলো") ||
-                lower.contains("খুলো") || lower.startsWith("open ") ||
-                lower.contains("চালু কর") || lower.contains("চালাও")
-    }
+    private fun isAppOpenCommand(l: String) =
+        (l.contains("ওপেন কর") || l.contains("খোলো") || l.contains("খুলো") ||
+                l.startsWith("open ") || l.contains("চালু কর") || l.contains("চালাও")) &&
+                !isCompoundCommand(l)
 
-    private fun isScreenReadCommand(lower: String): Boolean {
-        val hasScreen = lower.contains("স্ক্রিন") || lower.contains("screen") ||
-                lower.contains("টেক্সট") || lower.contains("লেখা")
-        val hasAction = lower.contains("পড়") || lower.contains("read") ||
-                lower.contains("বল") || lower.contains("translate") ||
-                lower.contains("অনুবাদ") || lower.contains("বাংলায়") ||
-                lower.contains("ইংলিশে") || lower.contains("ইংরেজিতে")
+    private fun isGoToCommand(l: String) =
+        l.contains("ঢুকো") || l.contains("ঢোকো") || l.contains("এ যাও") ||
+                l.contains("তে যাও") || l.contains("go to ") || l.contains("enter ")
+
+    private fun isSendCommand(l: String) =
+        (l == "সেন্ড" || l == "send" || l.contains("সেন্ড করো") || l.contains("সেন্ড কর") ||
+                l.contains("পাঠিয়ে দাও") || l == "send it") && !isMessageCommand(l)
+
+    private fun isSearchCommand(l: String) =
+        (l.contains("সার্চ কর") || l.contains("সার্চ করো") || l.contains("খুঁজো") ||
+                l.contains("search ")) && !isCompoundCommand(l)
+
+    private fun isTypeCommand(l: String) =
+        l.contains("লিখো") || l.contains("লেখো") || l.contains("type ") || l.contains("টাইপ কর")
+
+    private fun isClickCommand(l: String) =
+        l.contains("ক্লিক") || l.contains("click") || l.contains("ট্যাপ") || l.contains("tap") ||
+                l.contains("চাপো") || l.contains("press ")
+
+    private fun isScreenReadCommand(l: String): Boolean {
+        val hasScreen = l.contains("স্ক্রিন") || l.contains("screen") || l.contains("লেখা")
+        val hasAction = l.contains("পড়") || l.contains("read") || l.contains("বল") ||
+                l.contains("অনুবাদ") || l.contains("translate") || l.contains("বাংলায়")
         return hasScreen && hasAction
     }
 
-    private fun isVolumeCommand(lower: String): Boolean {
-        return lower.contains("volume") || lower.contains("ভলিউম") ||
-                lower.contains("সাউন্ড") || lower.contains("sound") ||
-                lower.contains("আওয়াজ")
-    }
+    private fun isVolumeCommand(l: String) =
+        l.contains("volume") || l.contains("ভলিউম") || l.contains("সাউন্ড") || l.contains("আওয়াজ")
 
-    private fun isContactSaveCommand(lower: String): Boolean {
-        return (lower.contains("কন্টাক্ট") || lower.contains("contact") ||
-                lower.contains("নাম্বার") || lower.contains("number")) &&
-                (lower.contains("সেভ") || lower.contains("save") ||
-                        lower.contains("অ্যাড") || lower.contains("add") ||
-                        lower.contains("যোগ"))
-    }
+    private fun isNavCommand(l: String) =
+        l.contains("ব্যাক") || l.contains("back") || l.contains("হোম") || l.contains("home") ||
+                l.contains("স্ক্রল") || l.contains("scroll") || l.contains("নোটিফিকেশন") ||
+                l.contains("notification")
 
-    private fun isReminderCommand(lower: String): Boolean {
-        return lower.contains("মনে কর") || lower.contains("রিমাইন্ডার") ||
-                lower.contains("remind") || lower.contains("মনে রাখ") ||
-                lower.contains("মনে করাই") || lower.contains("পরে বল")
-    }
+    private fun isReminderCommand(l: String) =
+        l.contains("মনে কর") || l.contains("রিমাইন্ডার") || l.contains("remind") || l.contains("মনে রাখ")
 
-    private fun isReminderAck(lower: String): Boolean {
-        return lower == "ঠিক আছে" || lower == "হ্যাঁ ঠিক আছে" ||
-                lower == "ok" || lower == "okay" || lower == "done" ||
-                lower == "হয়ে গেছে" || lower == "বুঝেছি"
-    }
+    private fun isReminderAck(l: String) =
+        l == "ঠিক আছে" || l == "ok" || l == "okay" || l == "done" || l == "হয়ে গেছে"
 
-    private fun isNavCommand(lower: String): Boolean {
-        return lower.contains("ব্যাক") || lower.contains("back") ||
-                lower.contains("হোম") || lower.contains("home") ||
-                lower.contains("স্ক্রল") || lower.contains("scroll") ||
-                lower.contains("নোটিফিকেশন") || lower.contains("notification")
-    }
+    private fun isContactSaveCommand(l: String) =
+        (l.contains("কন্টাক্ট") || l.contains("contact") || l.contains("নাম্বার")) &&
+                (l.contains("সেভ") || l.contains("save") || l.contains("অ্যাড") || l.contains("add"))
 
-    private fun isSendCommand(lower: String): Boolean {
-        return lower.contains("সেন্ড কর") || lower.contains("পাঠাও") ||
-                lower.contains("পাঠিয়ে দাও") || lower.contains("send it") ||
-                lower.contains("send koro") || lower.contains("পাঠাও") ||
-                lower == "সেন্ড" || lower == "send" || lower.contains("সেন্ড করো") ||
-                lower.contains("পাঠানো")
-    }
+    private fun isLockCommand(l: String) =
+        l.contains("লক কর") || l.contains("lock") || l.contains("ফোন লক")
 
-    private fun isSearchCommand(lower: String): Boolean {
-        return lower.contains("সার্চ কর") || lower.contains("সার্চ করো") ||
-                lower.contains("খুঁজো") || lower.contains("খোঁজো") ||
-                lower.contains("search for") || lower.contains("search ") ||
-                lower.contains("ফাইন্ড কর")
-    }
+    // ===================== COMPOUND COMMAND =====================
 
-    private fun isGoToCommand(lower: String): Boolean {
-        return lower.contains("ঢুকো") || lower.contains("ঢোকো") ||
-                lower.contains("যাও") || lower.contains("go to ") ||
-                lower.contains("এ যাও") || lower.contains("তে যাও") ||
-                lower.contains("enter ") || lower.contains("ঢুকে") ||
-                lower.contains("ওপেনে") || lower.contains("তে ঢুকো") ||
-                lower.contains("এ ঢুকো")
-    }
+    private suspend fun handleCompoundCommand(input: String, lower: String) {
+        val splitPatterns = listOf("ওপেন করে ", "খুলে ", "চালু করে ", " and then ", " then ")
+        var appPart = ""
+        var actionPart = ""
 
-    private fun isTypeCommand(lower: String): Boolean {
-        return lower.contains("লিখো") || lower.contains("লেখো") ||
-                lower.contains("type ") || lower.contains("টাইপ কর")
-    }
-
-    private fun isClickCommand(lower: String): Boolean {
-        return lower.contains("ক্লিক") || lower.contains("click") ||
-                lower.contains("ট্যাপ") || lower.contains("tap") ||
-                lower.contains("চাপ") || lower.contains("press")
-    }
-
-    private fun isLockCommand(lower: String): Boolean {
-        return lower.contains("লক কর") || lower.contains("lock") ||
-                lower.contains("ফোন লক")
-    }
-
-    // --- Handlers ---
-
-    private suspend fun handleAppOpen(input: String, lower: String) {
-        val appName = extractAppName(input, lower)
-        val packageName = findPackageName(appName)
-
-        if (packageName != null) {
-            val success = tryOpenPackage(packageName)
-            if (success) {
-                reply("$appName ওপেন করেছি Boss। এখন কী করব?")
-            } else {
-                reply("Boss, $appName ওপেন করতে পারলাম না। অ্যাপটি ইনস্টল আছে কিনা দেখুন।")
+        for (p in splitPatterns) {
+            val idx = lower.indexOf(p)
+            if (idx >= 0) {
+                appPart = input.substring(0, idx).trim()
+                actionPart = input.substring(idx + p.length).trim()
+                break
             }
-        } else {
-            reply("Boss, $appName নামের অ্যাপটি চিনতে পারছি না। পুরো নামটা বলুন।")
         }
-    }
 
-    private fun tryOpenPackage(packageName: String): Boolean {
-        val service = JarvisAccessibilityService.instance
-        if (service != null && service.openApp(packageName)) return true
+        if (appPart.isEmpty() || actionPart.isEmpty()) {
+            handleAiQuestion(input)
+            return
+        }
 
-        // Try fallback packages
-        fallbackPackages[packageName]?.forEach { fallback ->
-            if (service?.openApp(fallback) == true) return true
-            try {
-                val intent = context.packageManager.getLaunchIntentForPackage(fallback)
-                if (intent != null) {
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    context.startActivity(intent)
-                    return true
+        val cleanAppName = extractAppNameFromPart(appPart)
+        val pkgName = findPackageName(cleanAppName)
+
+        if (pkgName == null) {
+            reply("Boss, $cleanAppName অ্যাপটি পাচ্ছি না।")
+            return
+        }
+
+        updateOverlay("$cleanAppName খুলছি...")
+        if (!tryOpenPackage(pkgName)) {
+            reply("Boss, $cleanAppName খুলতে পারলাম না।")
+            return
+        }
+
+        delay(3000)
+
+        val actionLower = actionPart.lowercase()
+        when {
+            actionLower.contains("গান") || actionLower.contains("song") ||
+            actionLower.contains("প্লে") || actionLower.contains("play") ||
+            actionLower.contains("ভিডিও") || actionLower.contains("video") ||
+            actionLower.contains("বাজাও") || actionLower.contains("চালাও") -> {
+                val query = extractPlayQuery(actionPart)
+                if (query.isNotEmpty()) {
+                    performAppSearch(query)
+                    delay(2000)
+                    val svc = JarvisAccessibilityService.instance
+                    if (svc?.performClickOnText(query) == true || svc?.clickFirstClickableItem() == true) {
+                        reply("Boss, $query প্লে করছি!")
+                    } else {
+                        reply("Boss, $query সার্চ করেছি। যেটা চান ট্যাপ করুন।")
+                    }
+                } else {
+                    reply("Boss, $cleanAppName খুলেছি। কী প্লে করব বলুন!")
                 }
-            } catch (_: Exception) {}
+            }
+            actionLower.contains("সার্চ") || actionLower.contains("search") ||
+            actionLower.contains("খুঁজো") -> {
+                val query = cleanActionText(actionPart, listOf("সার্চ করো", "সার্চ কর", "খুঁজো", "search for", "search"))
+                if (query.isNotEmpty()) {
+                    performAppSearch(query)
+                    reply("Boss, $query সার্চ করেছি।")
+                } else {
+                    reply("Boss, $cleanAppName খুলেছি। কী সার্চ করব?")
+                }
+            }
+            actionLower.contains("মেসেজ") || actionLower.contains("message") ||
+            actionLower.contains("পাঠাও") || actionLower.contains("send") -> {
+                handleInAppMessaging(actionPart, actionLower)
+            }
+            actionLower.contains("ঢুকো") || actionLower.contains("যাও") -> {
+                val target = cleanActionText(actionPart, listOf("ঢুকো", "এ ঢুকো", "তে ঢুকো", "যাও", "এ যাও"))
+                if (target.isNotEmpty()) {
+                    val svc = JarvisAccessibilityService.instance
+                    if (svc?.searchAndClick(target) == true) {
+                        reply("Boss, $target এ গেছি!")
+                    } else {
+                        performAppSearch(target)
+                        delay(1500)
+                        if (svc?.performClickOnText(target) == true) {
+                            reply("Boss, $target পেয়েছি!")
+                        } else {
+                            reply("Boss, $target খুঁজে পাচ্ছি না।")
+                        }
+                    }
+                } else {
+                    reply("Boss, $cleanAppName খুলেছি। কোথায় যাব?")
+                }
+            }
+            else -> {
+                reply("Boss, $cleanAppName খুলেছি। $actionPart — এটা করতে চেষ্টা করছি...")
+                val svc = JarvisAccessibilityService.instance
+                val words = actionPart.split(" ").filter { it.length > 2 }
+                var done = false
+                for (word in words) {
+                    if (svc?.performClickOnText(word) == true) {
+                        reply("Boss, \"$word\" ক্লিক করেছি!")
+                        done = true
+                        break
+                    }
+                }
+                if (!done) reply("Boss, $cleanAppName খুলেছি। এখন কী করব বলুন!")
+            }
         }
-
-        // Last resort: direct intent
-        return try {
-            val intent = context.packageManager.getLaunchIntentForPackage(packageName)
-            if (intent != null) {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-                true
-            } else false
-        } catch (_: Exception) { false }
     }
 
-    private fun extractAppName(input: String, lower: String): String {
-        val patterns = listOf(
-            "ওপেন করো ", "ওপেন কর ", "খোলো ", "খুলো ", "চালু কর ", "চালাও ",
-            "open ", "ওপেন করো", "ওপেন কর", "খোলো", "খুলো", "চালু কর", "চালাও"
-        )
-        var cleaned = input
-        for (p in patterns) {
+    private fun extractAppNameFromPart(part: String): String {
+        val prefixes = listOf("ওপেন করো", "ওপেন কর", "খোলো", "খুলো", "চালু কর", "চালাও", "open")
+        var cleaned = part
+        for (p in prefixes) {
             cleaned = cleaned.replace(p, "", ignoreCase = true)
         }
-        return cleaned.trim().ifEmpty { input }
+        return cleaned.trim().ifEmpty { part }
+    }
+
+    // ===================== PLAY COMMAND =====================
+
+    private suspend fun handlePlayCommand(input: String, lower: String) {
+        val query = extractPlayQuery(input)
+        val currentPkg = JarvisAccessibilityService.currentPackageName
+
+        if (currentPkg == "com.google.android.youtube" || currentPkg == "com.spotify.music") {
+            if (query.isNotEmpty()) {
+                performAppSearch(query)
+                delay(2000)
+                val svc = JarvisAccessibilityService.instance
+                svc?.performClickOnText(query) ?: svc?.clickFirstClickableItem()
+                reply("Boss, $query প্লে করছি!")
+            } else {
+                reply("Boss, কী প্লে করব? গানের নাম বলুন।")
+            }
+            return
+        }
+
+        updateOverlay("YouTube খুলছি...")
+        tryOpenPackage("com.google.android.youtube")
+        delay(3000)
+
+        if (query.isNotEmpty()) {
+            performAppSearch(query)
+            delay(2000)
+            val svc = JarvisAccessibilityService.instance
+            svc?.performClickOnText(query) ?: svc?.clickFirstClickableItem()
+            reply("Boss, YouTube এ $query প্লে করছি!")
+        } else {
+            reply("Boss, YouTube খুলেছি। কী প্লে করব বলুন!")
+        }
+    }
+
+    private fun extractPlayQuery(input: String): String {
+        val removePatterns = listOf(
+            "প্লে করো", "প্লে কর", "চালাও", "বাজাও", "play",
+            "একটা গান", "একটু গান", "গান", "song", "ভিডিও", "video",
+            "youtube এ", "ইউটিউবে", "youtube", "ইউটিউব",
+            "spotify এ", "স্পটিফাইয়ে", "spotify",
+            "ওপেন করে", "খুলে", "চালু করে",
+        )
+        var cleaned = input
+        for (p in removePatterns) {
+            cleaned = cleaned.replace(p, " ", ignoreCase = true)
+        }
+        return cleaned.replace(Regex("\\s+"), " ").trim()
+    }
+
+    // ===================== MESSAGE COMMAND =====================
+
+    private suspend fun handleMessageCommand(input: String, lower: String) {
+        val parsed = parseMessageCommand(input, lower)
+        val contact = parsed.first
+        val message = parsed.second
+
+        if (contact.isEmpty()) {
+            reply("Boss, কাকে মেসেজ পাঠাব?")
+            return
+        }
+
+        val currentPkg = JarvisAccessibilityService.currentPackageName
+        val inWhatsApp = currentPkg == "com.whatsapp"
+
+        if (!inWhatsApp) {
+            updateOverlay("WhatsApp খুলছি...")
+            tryOpenPackage("com.whatsapp")
+            delay(3000)
+        }
+
+        updateOverlay("$contact খুঁজছি...")
+        val svc = JarvisAccessibilityService.instance ?: run {
+            reply("Boss, Accessibility Service চালু করুন।")
+            return
+        }
+
+        svc.clickSearchField()
+        delay(800)
+        svc.performTypeText(contact)
+        delay(1500)
+
+        if (svc.performClickOnText(contact)) {
+            delay(1500)
+            if (message.isNotEmpty()) {
+                svc.tapEditFieldAndType(message)
+                delay(500)
+                svc.clickSendButton()
+                reply("Boss, $contact কে \"$message\" পাঠিয়ে দিয়েছি!")
+            } else {
+                reply("Boss, $contact এর চ্যাটে ঢুকেছি। কী লিখব বলুন!")
+            }
+        } else {
+            reply("Boss, \"$contact\" WhatsApp এ খুঁজে পাচ্ছি না। নামটা চেক করুন।")
+        }
+    }
+
+    private fun parseMessageCommand(input: String, lower: String): Pair<String, String> {
+        // Pattern: "{contact} কে {message} পাঠাও"
+        val keIdx = lower.indexOf(" কে ")
+        if (keIdx > 0) {
+            val contact = input.substring(0, keIdx).trim()
+                .replace(Regex("(?i)(whatsapp|হোয়াটসঅ্যাপ|ওয়াটসঅ্যাপ)\\s*(এ|তে)?\\s*"), "")
+                .trim()
+            var msgPart = input.substring(keIdx + 4).trim()
+            val removeEnd = listOf("পাঠাও", "পাঠিয়ে দাও", "দাও", "send", "মেসেজ পাঠাও",
+                "মেসেজ দাও", "মেসেজ করো", "বলো", "লিখো")
+            for (r in removeEnd) {
+                msgPart = msgPart.replace(r, "", ignoreCase = true)
+            }
+            return Pair(contact.ifEmpty { "" }, msgPart.trim())
+        }
+
+        // Pattern: "send {message} to {contact}"
+        val toIdx = lower.indexOf(" to ")
+        if (toIdx > 0) {
+            var msgPart = input.substring(0, toIdx).trim()
+            val contact = input.substring(toIdx + 4).trim()
+                .replace(Regex("(?i)on\\s+whatsapp"), "").trim()
+            msgPart = msgPart.replace(Regex("(?i)^(send|message)\\s*"), "").trim()
+            return Pair(contact, msgPart)
+        }
+
+        return Pair("", "")
+    }
+
+    private suspend fun handleInAppMessaging(actionPart: String, actionLower: String) {
+        val svc = JarvisAccessibilityService.instance ?: return
+
+        val contactAndMsg = parseMessageCommand(actionPart, actionLower)
+        val contact = contactAndMsg.first
+        val message = contactAndMsg.second
+
+        if (contact.isNotEmpty()) {
+            svc.clickSearchField()
+            delay(800)
+            svc.performTypeText(contact)
+            delay(1500)
+            if (svc.performClickOnText(contact)) {
+                delay(1500)
+                if (message.isNotEmpty()) {
+                    svc.tapEditFieldAndType(message)
+                    delay(500)
+                    svc.clickSendButton()
+                    reply("Boss, $contact কে \"$message\" পাঠিয়েছি!")
+                } else {
+                    reply("Boss, $contact এর চ্যাটে ঢুকেছি। কী লিখব?")
+                }
+            } else {
+                reply("Boss, $contact খুঁজে পাচ্ছি না।")
+            }
+        } else {
+            reply("Boss, কাকে মেসেজ পাঠাব?")
+        }
+    }
+
+    // ===================== APP SEARCH (reusable) =====================
+
+    private suspend fun performAppSearch(query: String) {
+        val svc = JarvisAccessibilityService.instance ?: return
+        if (svc.clickSearchField()) {
+            delay(800)
+            svc.performTypeText(query)
+            delay(800)
+            svc.pressKeyboardAction()
+            delay(1500)
+        } else if (svc.clickByContentDescription("search")) {
+            delay(800)
+            svc.performTypeText(query)
+            delay(800)
+            svc.pressKeyboardAction()
+            delay(1500)
+        }
+    }
+
+    // ===================== SIMPLE HANDLERS =====================
+
+    private suspend fun handleAppOpen(input: String, lower: String) {
+        val appName = extractAppName(input)
+        val pkg = findPackageName(appName)
+        if (pkg != null && tryOpenPackage(pkg)) {
+            reply("$appName ওপেন করেছি Boss। এখন কী করব?")
+        } else if (pkg != null) {
+            reply("Boss, $appName খুলতে পারলাম না।")
+        } else {
+            reply("Boss, $appName চিনতে পারছি না। পুরো নাম বলুন।")
+        }
+    }
+
+    private suspend fun handleGoTo(input: String, lower: String) {
+        val target = cleanActionText(input, listOf("ঢুকো", "ঢোকো", "এ ঢুকো", "তে ঢুকো", "যাও", "এ যাও", "তে যাও", "go to", "enter"))
+        if (target.isBlank()) { reply("Boss, কোথায় যাব?"); return }
+        updateOverlay("\"$target\" খুঁজছি...")
+        val svc = JarvisAccessibilityService.instance
+        if (svc?.searchAndClick(target) == true) {
+            reply("\"$target\" এ গেছি Boss!")
+        } else {
+            performAppSearch(target)
+            delay(1500)
+            if (svc?.performClickOnText(target) == true) {
+                reply("\"$target\" পেয়ে গেছি Boss!")
+            } else {
+                reply("Boss, \"$target\" পাচ্ছি না স্ক্রিনে।")
+            }
+        }
+    }
+
+    private suspend fun handleSend() {
+        val svc = JarvisAccessibilityService.instance
+        if (svc?.clickSendButton() == true) {
+            reply("সেন্ড করেছি Boss!")
+        } else {
+            reply("Boss, সেন্ড বাটন পাচ্ছি না।")
+        }
+    }
+
+    private suspend fun handleSearch(input: String, lower: String) {
+        val query = cleanActionText(input, listOf("সার্চ করো", "সার্চ কর", "খুঁজো", "খোঁজো", "search for", "search"))
+        if (query.isBlank()) { reply("Boss, কী সার্চ করব?"); return }
+        updateOverlay("\"$query\" সার্চ করছি...")
+        performAppSearch(query)
+        reply("\"$query\" সার্চ করেছি Boss।")
+    }
+
+    private suspend fun handleTypeText(input: String, lower: String) {
+        val text = cleanActionText(input, listOf("লিখো", "লেখো", "টাইপ করো", "টাইপ কর", "type"))
+            .removeSurrounding("\"").removeSurrounding("'")
+        if (text.isEmpty()) { reply("Boss, কী লিখব?"); return }
+        val svc = JarvisAccessibilityService.instance
+        if (svc?.tapEditFieldAndType(text) == true || svc?.performTypeText(text) == true) {
+            reply("লিখেছি Boss!")
+        } else {
+            reply("Boss, টেক্সট ফিল্ড পাচ্ছি না। আগে ট্যাপ করুন।")
+        }
+    }
+
+    private suspend fun handleClick(input: String, lower: String) {
+        val target = cleanActionText(input, listOf("ক্লিক করো", "ক্লিক কর", "ট্যাপ করো", "ট্যাপ কর", "চাপো", "press", "click", "tap"))
+            .removeSurrounding("\"").removeSurrounding("'")
+        if (target.isEmpty()) { reply("Boss, কোথায় ক্লিক?"); return }
+        val svc = JarvisAccessibilityService.instance
+        if (svc?.searchAndClick(target) == true) {
+            reply("\"$target\" ক্লিক করেছি Boss!")
+        } else {
+            reply("Boss, \"$target\" পাচ্ছি না।")
+        }
+    }
+
+    private suspend fun handleScreenRead(lower: String) {
+        val screenText = JarvisAccessibilityService.currentScreenText
+        if (screenText.isBlank()) { reply("Boss, স্ক্রিনে টেক্সট নেই।"); return }
+        val wantsEn = lower.contains("ইংলিশে") || lower.contains("english")
+        val lang = if (wantsEn) "en" else "bn"
+        val translated = translateText(screenText, lang)
+        val prefix = if (wantsEn) "Screen says:" else "স্ক্রিনে লেখা:"
+        reply("$prefix ${translated ?: screenText}")
+    }
+
+    private suspend fun handleVolume(lower: String) {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val cur = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        when {
+            lower.contains("বাড়াও") || lower.contains("up") || lower.contains("increase") -> {
+                am.setStreamVolume(AudioManager.STREAM_MUSIC, (cur + max / 5).coerceAtMost(max), AudioManager.FLAG_SHOW_UI)
+                reply("ভলিউম বাড়িয়েছি Boss।")
+            }
+            lower.contains("কমাও") || lower.contains("down") || lower.contains("decrease") -> {
+                am.setStreamVolume(AudioManager.STREAM_MUSIC, (cur - max / 5).coerceAtLeast(0), AudioManager.FLAG_SHOW_UI)
+                reply("ভলিউম কমিয়েছি Boss।")
+            }
+            lower.contains("মিউট") || lower.contains("mute") -> {
+                am.setStreamVolume(AudioManager.STREAM_MUSIC, 0, AudioManager.FLAG_SHOW_UI)
+                reply("মিউট করেছি Boss।")
+            }
+            lower.contains("ফুল") || lower.contains("full") || lower.contains("max") -> {
+                am.setStreamVolume(AudioManager.STREAM_MUSIC, max, AudioManager.FLAG_SHOW_UI)
+                reply("ভলিউম ফুল করেছি Boss!")
+            }
+            else -> reply("Boss, বাড়াও/কমাও/মিউট/ফুল বলুন।")
+        }
+    }
+
+    private suspend fun handleNavigation(lower: String) {
+        val svc = JarvisAccessibilityService.instance
+        when {
+            lower.contains("ব্যাক") || lower.contains("back") -> { svc?.pressBack(); reply("ব্যাক গেছি Boss।") }
+            lower.contains("হোম") || lower.contains("home") -> { svc?.pressHome(); reply("হোমে এসেছি Boss।") }
+            lower.contains("নোটিফিকেশন") || lower.contains("notification") -> { svc?.openNotifications(); reply("নোটিফিকেশন খুলেছি Boss।") }
+            lower.contains("স্ক্রল আপ") || lower.contains("scroll up") || lower.contains("উপরে") -> { svc?.scrollUp(); reply("উপরে স্ক্রল করেছি।") }
+            lower.contains("স্ক্রল") || lower.contains("scroll") || lower.contains("নিচে") -> { svc?.scrollDown(); reply("নিচে স্ক্রল করেছি।") }
+        }
+    }
+
+    private suspend fun handleReminder(input: String, lower: String) {
+        val durationMs = parseTimeDuration(lower)
+        val text = extractReminderText(input)
+        val ms = if (durationMs > 0) durationMs else 3600_000L
+        if (text.isNotEmpty()) {
+            val r = Reminder(text = text, triggerTimeMillis = System.currentTimeMillis() + ms, isAcknowledged = false, createdAt = System.currentTimeMillis())
+            withContext(Dispatchers.IO) { db.reminderDao().insert(r) }
+            reminderManager.scheduleReminder(r)
+            reply("Done Boss! ${formatDuration(ms)} পরে মনে করাব: \"$text\"")
+        } else {
+            reply("Boss, কী মনে করাব আর কখন — দুটোই বলুন।")
+        }
+    }
+
+    private suspend fun handleReminderAck() {
+        withContext(Dispatchers.IO) {
+            db.reminderDao().getActiveReminders()
+                .filter { it.triggerTimeMillis <= System.currentTimeMillis() }
+                .forEach { db.reminderDao().markAcknowledged(it.id); db.reminderDao().deleteAcknowledged() }
+        }
+        reply("রিমাইন্ডার মুছেছি Boss।")
+    }
+
+    private suspend fun handleContactSave(input: String, lower: String) {
+        val numberRegex = Regex("[+]?[0-9\\s\\-]{7,15}")
+        var number = numberRegex.find(input)?.value?.replace(Regex("[\\s\\-]"), "")
+        if (number == null) {
+            number = numberRegex.find(JarvisAccessibilityService.currentScreenText)?.value?.replace(Regex("[\\s\\-]"), "")
+        }
+        if (number == null) { reply("Boss, নাম্বার বলুন।"); return }
+        reply("নাম্বার পেয়েছি: $number। কন্টাক্টের নাম বলুন Boss।")
+        pendingContactNumber = number
+    }
+
+    private suspend fun handleAiQuestion(input: String) {
+        updateOverlay("উত্তর আনছি...")
+        aiBrain.provider = settings.getAiProvider()
+        aiBrain.apiKey = settings.getAiApiKey()
+        val screen = JarvisAccessibilityService.currentScreenText
+        reply(aiBrain.ask(input, screen, settings.getLanguage()))
+    }
+
+    // ===================== UTILITIES =====================
+
+    private fun extractAppName(input: String): String {
+        val patterns = listOf("ওপেন করো ", "ওপেন কর ", "খোলো ", "খুলো ", "চালু কর ", "চালাও ", "open ")
+        var c = input
+        for (p in patterns) c = c.replace(p, "", ignoreCase = true)
+        return c.trim().ifEmpty { input }
+    }
+
+    private fun cleanActionText(input: String, removePatterns: List<String>): String {
+        var c = input
+        for (p in removePatterns) c = c.replace(p, " ", ignoreCase = true)
+        return c.replace(Regex("\\s+"), " ").trim()
     }
 
     private fun findPackageName(appName: String): String? {
         val lower = appName.lowercase().trim()
         appPackages[lower]?.let { return it }
         for ((key, pkg) in appPackages) {
-            if (lower.contains(key) || key.contains(lower)) {
-                return pkg
-            }
+            if (lower.contains(key) || key.contains(lower)) return pkg
         }
         return try {
-            val intent = Intent(Intent.ACTION_MAIN).apply {
-                addCategory(Intent.CATEGORY_LAUNCHER)
-            }
-            val apps = context.packageManager.queryIntentActivities(intent, 0)
-            for (app in apps) {
-                val label = app.loadLabel(context.packageManager).toString().lowercase()
-                if (label.contains(lower) || lower.contains(label)) {
-                    return app.activityInfo.packageName
-                }
-            }
-            null
+            val intent = Intent(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
+            context.packageManager.queryIntentActivities(intent, 0).firstOrNull {
+                val label = it.loadLabel(context.packageManager).toString().lowercase()
+                label.contains(lower) || lower.contains(label)
+            }?.activityInfo?.packageName
         } catch (_: Exception) { null }
     }
 
-    private suspend fun handleGoTo(input: String, lower: String) {
-        val target = extractGoToTarget(input, lower)
-        if (target.isBlank()) {
-            reply("Boss, কোথায় যাব বলুন।")
-            return
+    private fun tryOpenPackage(packageName: String): Boolean {
+        JarvisAccessibilityService.instance?.let { svc ->
+            if (svc.openApp(packageName)) return true
         }
-
-        updateOverlay("\"$target\" খুঁজছি...")
-        val service = JarvisAccessibilityService.instance
-        if (service == null) {
-            reply("Boss, Accessibility Service চালু নেই। সেটিংস থেকে চালু করুন।")
-            return
-        }
-
-        val found = withContext(Dispatchers.IO) {
-            service.searchAndClick(target)
-        }
-        if (found) {
-            reply("\"$target\" এ গেছি Boss। এখন কী করব?")
-        } else {
-            // Try via search field
-            val searched = trySearchInCurrentApp(service, target)
-            if (searched) {
-                reply("\"$target\" সার্চ করে পেয়েছি Boss।")
-            } else {
-                reply("Boss, \"$target\" খুঁজে পাচ্ছি না স্ক্রিনে। নামটা চেক করুন।")
-            }
-        }
-    }
-
-    private fun extractGoToTarget(input: String, lower: String): String {
-        val patterns = listOf(
-            "ঢুকো ", "ঢোকো ", "যাও ", "go to ", "enter ",
-            "এ ঢুকো", "তে ঢুকো", "এ যাও", "তে যাও",
-            "ঢুকো", "ঢোকো", "যাও", "ঢুকে",
-        )
-        var cleaned = input
-        for (p in patterns) {
-            cleaned = cleaned.replace(p, " ", ignoreCase = true)
-        }
-        return cleaned.trim()
-    }
-
-    private suspend fun handleSearch(input: String, lower: String) {
-        val query = extractSearchQuery(input, lower)
-        if (query.isBlank()) {
-            reply("Boss, কী সার্চ করব বলুন।")
-            return
-        }
-
-        val service = JarvisAccessibilityService.instance
-        if (service == null) {
-            reply("Boss, Accessibility Service চালু নেই।")
-            return
-        }
-
-        updateOverlay("\"$query\" সার্চ করছি...")
-
-        val success = trySearchInCurrentApp(service, query)
-        if (success) {
-            reply("\"$query\" সার্চ করেছি Boss।")
-        } else {
-            reply("Boss, সার্চ ফিল্ড পাচ্ছি না এই অ্যাপে।")
-        }
-    }
-
-    private suspend fun trySearchInCurrentApp(service: JarvisAccessibilityService, query: String): Boolean {
-        return withContext(Dispatchers.IO) {
-            if (service.clickSearchField()) {
-                Thread.sleep(500)
-                if (service.performTypeText(query)) {
-                    Thread.sleep(800)
-                    if (service.performClickOnText(query)) {
-                        return@withContext true
-                    }
-                    return@withContext true
-                }
-            }
-            false
-        }
-    }
-
-    private fun extractSearchQuery(input: String, lower: String): String {
-        val patterns = listOf(
-            "সার্চ করো ", "সার্চ কর ", "খুঁজো ", "খোঁজো ",
-            "search for ", "search ", "ফাইন্ড করো ", "ফাইন্ড কর "
-        )
-        var cleaned = input
-        for (p in patterns) {
-            cleaned = cleaned.replace(p, "", ignoreCase = true)
-        }
-        return cleaned.trim()
-    }
-
-    private suspend fun handleSend(input: String, lower: String) {
-        val service = JarvisAccessibilityService.instance
-        if (service == null) {
-            reply("Boss, Accessibility Service চালু নেই।")
-            return
-        }
-
-        val success = withContext(Dispatchers.IO) {
-            service.clickSendButton()
-        }
-        if (success) {
-            reply("সেন্ড করে দিয়েছি Boss।")
-        } else {
-            reply("Boss, সেন্ড বাটন পাচ্ছি না।")
-        }
-    }
-
-    private suspend fun handleScreenRead(lower: String) {
-        val screenText = JarvisAccessibilityService.currentScreenText
-        if (screenText.isBlank()) {
-            reply("Boss, স্ক্রিনে কোনো টেক্সট পাচ্ছি না।")
-            return
-        }
-
-        val wantsEnglish = lower.contains("ইংলিশে") || lower.contains("ইংরেজিতে") ||
-                lower.contains("english")
-        val wantsHindi = lower.contains("হিন্দিতে") || lower.contains("hindi")
-
-        val targetLang = when {
-            wantsEnglish -> "en"
-            wantsHindi -> "hi"
-            else -> "bn"
-        }
-
-        val translated = translateText(screenText, targetLang)
-        if (translated != null) {
-            val prefix = when (targetLang) {
-                "en" -> "Boss, your screen says:"
-                "hi" -> "Boss, आपकी स्क्रीन पर लिखा है:"
-                else -> "Boss, আপনার স্ক্রিনে লেখা আছে:"
-            }
-            reply("$prefix $translated")
-        } else {
-            reply("Boss, আপনার স্ক্রিনে লেখা আছে: $screenText")
-        }
-    }
-
-    private suspend fun translateText(text: String, targetLang: String): String? {
-        return withContext(Dispatchers.IO) {
+        fallbackPackages[packageName]?.forEach { fallback ->
+            JarvisAccessibilityService.instance?.openApp(fallback)?.let { if (it) return true }
             try {
-                val url = "https://translate.googleapis.com/translate_a/single?" +
-                        "client=gtx&sl=auto&tl=$targetLang&dt=t&q=${java.net.URLEncoder.encode(text, "UTF-8")}"
-                val request = okhttp3.Request.Builder().url(url).get().build()
-                val response = okhttp3.OkHttpClient().newCall(request).execute()
-                if (response.isSuccessful) {
-                    val body = response.body?.string() ?: return@withContext null
-                    val json = org.json.JSONArray(body)
-                    val segments = json.getJSONArray(0)
-                    val sb = StringBuilder()
-                    for (i in 0 until segments.length()) {
-                        val seg = segments.optJSONArray(i)
-                        if (seg != null && seg.length() > 0) {
-                            sb.append(seg.optString(0, ""))
-                        }
-                    }
-                    sb.toString().trim().ifEmpty { null }
-                } else null
-            } catch (e: Exception) {
-                Log.e(TAG, "Translation error", e)
-                null
-            }
+                val intent = context.packageManager.getLaunchIntentForPackage(fallback)
+                if (intent != null) { intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(intent); return true }
+            } catch (_: Exception) {}
         }
+        return try {
+            val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+            if (intent != null) { intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(intent); true } else false
+        } catch (_: Exception) { false }
     }
 
-    private suspend fun handleVolume(lower: String) {
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        val current = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-        val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-
-        when {
-            lower.contains("বাড়াও") || lower.contains("বাড়া") || lower.contains("up") ||
-                    lower.contains("increase") || lower.contains("বেশি") -> {
-                val newVol = (current + max / 5).coerceAtMost(max)
-                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, AudioManager.FLAG_SHOW_UI)
-                reply("ভলিউম বাড়িয়ে দিয়েছি Boss।")
-            }
-            lower.contains("কমাও") || lower.contains("কমা") || lower.contains("down") ||
-                    lower.contains("decrease") || lower.contains("কম") -> {
-                val newVol = (current - max / 5).coerceAtLeast(0)
-                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, AudioManager.FLAG_SHOW_UI)
-                reply("ভলিউম কমিয়ে দিয়েছি Boss।")
-            }
-            lower.contains("মিউট") || lower.contains("mute") || lower.contains("নিঃশব্দ") -> {
-                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, AudioManager.FLAG_SHOW_UI)
-                reply("সাউন্ড মিউট করে দিয়েছি Boss।")
-            }
-            lower.contains("ফুল") || lower.contains("full") || lower.contains("সর্বোচ্চ") || lower.contains("max") -> {
-                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, max, AudioManager.FLAG_SHOW_UI)
-                reply("ভলিউম সর্বোচ্চে দিয়ে দিয়েছি Boss।")
-            }
-            else -> {
-                reply("Boss, ভলিউম কতটুকু করতে চান? বাড়াও, কমাও, মিউট বা ফুল বলুন।")
-            }
-        }
-    }
-
-    private suspend fun handleContactSave(input: String, lower: String) {
-        val numberRegex = Regex("[+]?[0-9\\s\\-]{7,15}")
-        var number = numberRegex.find(input)?.value?.replace(Regex("[\\s\\-]"), "")
-
-        if (number == null) {
-            val screenText = JarvisAccessibilityService.currentScreenText
-            number = numberRegex.find(screenText)?.value?.replace(Regex("[\\s\\-]"), "")
-        }
-
-        if (number == null) {
-            reply("Boss, কোনো নাম্বার পাচ্ছি না। নাম্বারটা বলুন।")
-            return
-        }
-
-        reply("Boss, নাম্বার পেয়েছি: $number। কন্টাক্টের নাম কী দেব?")
-        pendingContactNumber = number
-    }
-
-    private suspend fun handleReminder(input: String, lower: String) {
-        val durationMs = parseTimeDuration(lower)
-        val reminderText = extractReminderText(input)
-
-        if (durationMs > 0 && reminderText.isNotEmpty()) {
-            val triggerTime = System.currentTimeMillis() + durationMs
-            val reminder = Reminder(
-                text = reminderText,
-                triggerTimeMillis = triggerTime,
-                isAcknowledged = false,
-                createdAt = System.currentTimeMillis()
-            )
-            withContext(Dispatchers.IO) { db.reminderDao().insert(reminder) }
-            reminderManager.scheduleReminder(reminder)
-            val timeDesc = formatDuration(durationMs)
-            reply("Done Boss! $timeDesc পরে মনে করিয়ে দেব: \"$reminderText\"")
-        } else if (reminderText.isNotEmpty()) {
-            val triggerTime = System.currentTimeMillis() + 3600_000L
-            val reminder = Reminder(
-                text = reminderText,
-                triggerTimeMillis = triggerTime,
-                isAcknowledged = false,
-                createdAt = System.currentTimeMillis()
-            )
-            withContext(Dispatchers.IO) { db.reminderDao().insert(reminder) }
-            reminderManager.scheduleReminder(reminder)
-            reply("Boss, ১ ঘণ্টা পরে মনে করিয়ে দেব: \"$reminderText\"। সময় ঠিক না হলে বলুন।")
-        } else {
-            reply("Boss, কী মনে করাইতে চান আর কখন — দুটোই বলুন।")
-        }
-    }
-
-    private fun parseTimeDuration(lower: String): Long {
-        var totalMs = 0L
-        val minRegex = Regex("(\\d+)\\s*(মিনিট|minute|min)")
-        minRegex.find(lower)?.let {
-            totalMs += it.groupValues[1].toLongOrNull()?.times(60_000L) ?: 0
-        }
-        val hourRegex = Regex("(\\d+)\\s*(ঘণ্টা|ঘন্টা|hour|hr)")
-        hourRegex.find(lower)?.let {
-            totalMs += it.groupValues[1].toLongOrNull()?.times(3600_000L) ?: 0
-        }
-        val dayRegex = Regex("(\\d+)\\s*(দিন|day)")
-        dayRegex.find(lower)?.let {
-            totalMs += it.groupValues[1].toLongOrNull()?.times(86_400_000L) ?: 0
-        }
-        val weekRegex = Regex("(\\d+)\\s*(সপ্তাহ|week)")
-        weekRegex.find(lower)?.let {
-            totalMs += it.groupValues[1].toLongOrNull()?.times(604_800_000L) ?: 0
-        }
-        if (lower.contains("এক সপ্তাহ") || lower.contains("১ সপ্তাহ") || lower.contains("1 week")) {
-            totalMs = 604_800_000L
-        }
-        if (lower.contains("আধা ঘণ্টা") || lower.contains("৩০ মিনিট")) {
-            totalMs = 1_800_000L
-        }
-        if (lower.contains("আগামীকাল") || lower.contains("tomorrow")) {
-            totalMs = 86_400_000L
-        }
-        return totalMs
+    private fun parseTimeDuration(l: String): Long {
+        var ms = 0L
+        Regex("(\\d+)\\s*(মিনিট|minute|min)").find(l)?.let { ms += (it.groupValues[1].toLongOrNull() ?: 0) * 60_000 }
+        Regex("(\\d+)\\s*(ঘণ্টা|ঘন্টা|hour)").find(l)?.let { ms += (it.groupValues[1].toLongOrNull() ?: 0) * 3_600_000 }
+        Regex("(\\d+)\\s*(দিন|day)").find(l)?.let { ms += (it.groupValues[1].toLongOrNull() ?: 0) * 86_400_000 }
+        if (l.contains("আধা ঘণ্টা")) ms = 1_800_000
+        if (l.contains("আগামীকাল") || l.contains("tomorrow")) ms = 86_400_000
+        return ms
     }
 
     private fun extractReminderText(input: String): String {
-        val patterns = listOf(
-            "মনে করাইও ", "মনে করিও ", "মনে রাখো ", "মনে করাই দিও ",
-            "remind me ", "reminder ", "মনে করাও ", "পরে বলো "
-        )
-        var text = input
-        for (p in patterns) {
-            text = text.replace(p, "", ignoreCase = true)
+        var t = input
+        for (p in listOf("মনে করাইও", "মনে করিও", "মনে রাখো", "remind me", "মনে করাও", "পরে বলো")) {
+            t = t.replace(p, "", ignoreCase = true)
         }
-        text = text.replace(Regex("(\\d+\\s*(সপ্তাহ|দিন|ঘণ্টা|ঘন্টা|মিনিট|week|day|hour|minute|min|hr)\\s*পরে?\\s*)"), "")
-        text = text.replace(Regex("(এক সপ্তাহ পরে?|আগামীকাল|আধা ঘণ্টা পরে?)\\s*"), "")
-        return text.replace(Regex("^[—\\-–:]+"), "").trim()
+        t = t.replace(Regex("(\\d+\\s*(সপ্তাহ|দিন|ঘণ্টা|মিনিট|week|day|hour|minute)\\s*পরে?\\s*)"), "")
+        t = t.replace(Regex("(আধা ঘণ্টা পরে?|আগামীকাল)\\s*"), "")
+        return t.replace(Regex("^[—\\-–:]+"), "").trim()
     }
 
-    private fun formatDuration(ms: Long): String {
-        return when {
-            ms >= 604_800_000 -> "${ms / 604_800_000} সপ্তাহ"
-            ms >= 86_400_000 -> "${ms / 86_400_000} দিন"
-            ms >= 3_600_000 -> "${ms / 3_600_000} ঘণ্টা"
-            ms >= 60_000 -> "${ms / 60_000} মিনিট"
-            else -> "কিছুক্ষণ"
-        }
+    private fun formatDuration(ms: Long) = when {
+        ms >= 86_400_000 -> "${ms / 86_400_000} দিন"
+        ms >= 3_600_000 -> "${ms / 3_600_000} ঘণ্টা"
+        ms >= 60_000 -> "${ms / 60_000} মিনিট"
+        else -> "কিছুক্ষণ"
     }
 
-    private suspend fun handleReminderAck() {
-        withContext(Dispatchers.IO) {
-            val active = db.reminderDao().getActiveReminders()
-            val triggered = active.filter { it.triggerTimeMillis <= System.currentTimeMillis() }
-            for (r in triggered) {
-                db.reminderDao().markAcknowledged(r.id)
-                db.reminderDao().deleteAcknowledged()
-            }
-        }
-        reply("ঠিক আছে Boss, রিমাইন্ডার মুছে দিয়েছি।")
-    }
-
-    private suspend fun handleNavigation(lower: String) {
-        val service = JarvisAccessibilityService.instance
-        when {
-            lower.contains("ব্যাক") || lower.contains("back") -> {
-                service?.pressBack()
-                reply("ব্যাক গেছি Boss।")
-            }
-            lower.contains("হোম") || lower.contains("home") -> {
-                service?.pressHome()
-                reply("হোম স্ক্রিনে এসেছি Boss।")
-            }
-            lower.contains("নোটিফিকেশন") || lower.contains("notification") -> {
-                service?.openNotifications()
-                reply("নোটিফিকেশন প্যানেল খুলেছি Boss।")
-            }
-            lower.contains("স্ক্রল আপ") || lower.contains("scroll up") || lower.contains("উপরে") -> {
-                service?.scrollUp()
-                reply("উপরে স্ক্রল করেছি Boss।")
-            }
-            lower.contains("স্ক্রল") || lower.contains("scroll") || lower.contains("নিচে") -> {
-                service?.scrollDown()
-                reply("নিচে স্ক্রল করেছি Boss।")
-            }
-        }
-    }
-
-    private suspend fun handleTypeText(input: String, lower: String) {
-        val patterns = listOf("লিখো ", "লেখো ", "টাইপ করো ", "টাইপ কর ", "type ")
-        var textToType = input
-        for (p in patterns) {
-            textToType = textToType.replace(p, "", ignoreCase = true)
-        }
-        textToType = textToType.trim().removeSurrounding("\"").removeSurrounding("'")
-
-        if (textToType.isNotEmpty()) {
-            val service = JarvisAccessibilityService.instance
-            val success = service?.tapEditFieldAndType(textToType) ?: false
-            if (success) {
-                reply("লিখে দিয়েছি Boss।")
-            } else {
-                val retrySuccess = service?.performTypeText(textToType) ?: false
-                if (retrySuccess) {
-                    reply("লিখে দিয়েছি Boss।")
-                } else {
-                    reply("Boss, টেক্সট ফিল্ড পাচ্ছি না। আগে যেখানে লিখতে চান সেখানে ট্যাপ করুন।")
-                }
-            }
-        } else {
-            reply("Boss, কী লিখব বলুন।")
-        }
-    }
-
-    private suspend fun handleClick(input: String, lower: String) {
-        val patterns = listOf("ক্লিক করো ", "ক্লিক কর ", "ট্যাপ করো ", "ট্যাপ কর ", "চাপো ", "press ", "click ", "tap ")
-        var target = input
-        for (p in patterns) {
-            target = target.replace(p, "", ignoreCase = true)
-        }
-        target = target.trim().removeSurrounding("\"").removeSurrounding("'")
-
-        if (target.isNotEmpty()) {
-            val success = JarvisAccessibilityService.instance?.searchAndClick(target) ?: false
-            if (success) {
-                reply("\"$target\" এ ক্লিক করেছি Boss।")
-            } else {
-                reply("Boss, \"$target\" খুঁজে পাচ্ছি না স্ক্রিনে।")
-            }
-        } else {
-            reply("Boss, কোথায় ক্লিক করব বলুন।")
-        }
-    }
-
-    private suspend fun handleAiQuestion(input: String) {
-        updateOverlay("Boss এর জন্য উত্তর আনছি...")
-
-        aiBrain.provider = settings.getAiProvider()
-        aiBrain.apiKey = settings.getAiApiKey()
-        val screenContext = JarvisAccessibilityService.currentScreenText
-        val response = aiBrain.ask(input, screenContext, settings.getLanguage())
-
-        reply(response)
+    private suspend fun translateText(text: String, targetLang: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=$targetLang&dt=t&q=${java.net.URLEncoder.encode(text, "UTF-8")}"
+            val resp = okhttp3.OkHttpClient().newCall(okhttp3.Request.Builder().url(url).get().build()).execute()
+            if (resp.isSuccessful) {
+                val body = resp.body?.string() ?: return@withContext null
+                val json = org.json.JSONArray(body)
+                val segs = json.getJSONArray(0)
+                val sb = StringBuilder()
+                for (i in 0 until segs.length()) { segs.optJSONArray(i)?.optString(0, "")?.let { sb.append(it) } }
+                sb.toString().trim().ifEmpty { null }
+            } else null
+        } catch (_: Exception) { null }
     }
 
     private suspend fun reply(text: String) {
@@ -876,31 +782,21 @@ class CommandProcessor(private val context: Context) {
         JarvisForegroundService.lastReplyText = text
         JarvisForegroundService.replyListeners.forEach { it(text) }
         updateOverlay(text.take(60) + if (text.length > 60) "..." else "")
-
-        try {
-            voiceEngine.speak(text)
-        } catch (e: Exception) {
-            Log.e(TAG, "Voice engine error", e)
-        }
+        try { voiceEngine.speak(text) } catch (_: Exception) {}
     }
 
     private fun updateOverlay(text: String) {
-        val intent = Intent(context, OverlayService::class.java).apply {
-            action = OverlayService.ACTION_UPDATE_TEXT
-            putExtra(OverlayService.EXTRA_TEXT, text)
-        }
-        try { context.startService(intent) } catch (_: Exception) {}
+        try {
+            context.startService(Intent(context, OverlayService::class.java).apply {
+                action = OverlayService.ACTION_UPDATE_TEXT
+                putExtra(OverlayService.EXTRA_TEXT, text)
+            })
+        } catch (_: Exception) {}
     }
 
     private suspend fun saveMessage(role: String, content: String) {
         withContext(Dispatchers.IO) {
-            db.messageDao().insert(
-                ConversationMessage(
-                    role = role,
-                    content = content,
-                    timestamp = System.currentTimeMillis()
-                )
-            )
+            db.messageDao().insert(ConversationMessage(role = role, content = content, timestamp = System.currentTimeMillis()))
         }
     }
 

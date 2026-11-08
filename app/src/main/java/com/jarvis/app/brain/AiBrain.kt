@@ -14,9 +14,9 @@ import java.util.concurrent.TimeUnit
 class AiBrain {
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(45, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
@@ -203,21 +203,24 @@ class AiBrain {
     private fun tryPollinations(systemPrompt: String, userInput: String): String? {
         val messages = JSONArray()
         messages.put(JSONObject().put("role", "system").put("content", systemPrompt))
-        for ((role, content) in chatHistory.takeLast(8)) {
+        for ((role, content) in chatHistory.takeLast(6)) {
             messages.put(JSONObject().put("role", role).put("content", content))
         }
         messages.put(JSONObject().put("role", "user").put("content", userInput))
 
-        for (model in listOf("openai", "openai-fast")) {
+        val models = listOf("openai", "openai-fast", "qwen-coder", "llama", "mistral")
+        for (model in models) {
             try {
                 val body = JSONObject().apply {
                     put("model", model)
                     put("messages", messages)
                     put("temperature", 0.7)
+                    put("seed", System.currentTimeMillis().toInt())
                 }
 
                 val request = Request.Builder()
                     .url("https://text.pollinations.ai/openai")
+                    .addHeader("Content-Type", "application/json")
                     .post(body.toString().toRequestBody("application/json".toMediaType()))
                     .build()
 
@@ -230,25 +233,56 @@ class AiBrain {
                 }
 
                 if (bodyStr.contains("reached its budget", ignoreCase = true) ||
-                    bodyStr.contains("rate limit", ignoreCase = true)) {
-                    Log.w(TAG, "Pollinations budget/rate error ($model)")
+                    bodyStr.contains("rate limit", ignoreCase = true) ||
+                    bodyStr.contains("server is busy", ignoreCase = true) ||
+                    bodyStr.contains("overloaded", ignoreCase = true)) {
+                    Log.w(TAG, "Pollinations busy ($model)")
                     continue
                 }
 
-                val content = JSONObject(bodyStr).optJSONArray("choices")
-                    ?.optJSONObject(0)
-                    ?.optJSONObject("message")
-                    ?.optString("content", "")
-                    ?.trim()?.ifEmpty { null }
+                val content = try {
+                    JSONObject(bodyStr).optJSONArray("choices")
+                        ?.optJSONObject(0)
+                        ?.optJSONObject("message")
+                        ?.optString("content", "")
+                        ?.trim()?.ifEmpty { null }
+                } catch (_: Exception) { null }
 
-                if (content != null && !content.contains("reached its budget", ignoreCase = true)) {
+                if (content != null &&
+                    !content.contains("reached its budget", ignoreCase = true) &&
+                    !content.contains("server is busy", ignoreCase = true)) {
                     return content
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Pollinations exception ($model)", e)
             }
         }
-        return null
+
+        return tryPollinationsSimple(systemPrompt, userInput)
+    }
+
+    private fun tryPollinationsSimple(systemPrompt: String, userInput: String): String? {
+        return try {
+            val prompt = "$systemPrompt\n\nUser: $userInput\nAssistant:"
+            val encoded = java.net.URLEncoder.encode(prompt, "UTF-8")
+            val request = Request.Builder()
+                .url("https://text.pollinations.ai/$encoded?model=mistral&seed=${System.currentTimeMillis().toInt()}")
+                .get()
+                .build()
+
+            val resp = client.newCall(request).execute()
+            if (resp.isSuccessful) {
+                val text = resp.body?.string()?.trim()
+                if (!text.isNullOrBlank() &&
+                    !text.contains("server is busy", ignoreCase = true) &&
+                    !text.contains("reached its budget", ignoreCase = true)) {
+                    text
+                } else null
+            } else null
+        } catch (e: Exception) {
+            Log.e(TAG, "Pollinations simple exception", e)
+            null
+        }
     }
 
     private fun buildSystemPrompt(isHindi: Boolean, screenContext: String): String {

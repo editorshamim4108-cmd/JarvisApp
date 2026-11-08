@@ -8,12 +8,14 @@ import android.os.Bundle
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 
 class JarvisAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        Log.d(TAG, "Accessibility service connected")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -34,6 +36,8 @@ class JarvisAccessibilityService : AccessibilityService() {
         super.onDestroy()
         if (instance == this) instance = null
     }
+
+    // === TEXT EXTRACTION ===
 
     private fun extractAllText(node: AccessibilityNodeInfo): String {
         val sb = StringBuilder()
@@ -58,19 +62,41 @@ class JarvisAccessibilityService : AccessibilityService() {
     fun getScreenText(): String = currentScreenText
     fun getCurrentPackage(): String = currentPackageName
 
+    // === CLICK OPERATIONS ===
+
     fun performClickOnText(targetText: String): Boolean {
         val root = rootInActiveWindow ?: return false
         val lower = targetText.lowercase()
+
         val nodes = root.findAccessibilityNodeInfosByText(targetText)
         for (node in nodes) {
             if (clickNodeOrParent(node)) return true
         }
+
         val allNodes = mutableListOf<AccessibilityNodeInfo>()
         collectAllNodes(root, allNodes)
         for (node in allNodes) {
             val text = node.text?.toString()?.lowercase() ?: ""
             val desc = node.contentDescription?.toString()?.lowercase() ?: ""
             if (text.contains(lower) || desc.contains(lower)) {
+                if (clickNodeOrParent(node)) {
+                    allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+                    return true
+                }
+            }
+        }
+        allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+        return false
+    }
+
+    fun clickByContentDescription(targetDesc: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val lower = targetDesc.lowercase()
+        val allNodes = mutableListOf<AccessibilityNodeInfo>()
+        collectAllNodes(root, allNodes)
+        for (node in allNodes) {
+            val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+            if (desc.contains(lower)) {
                 if (clickNodeOrParent(node)) {
                     allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
                     return true
@@ -120,6 +146,8 @@ class JarvisAccessibilityService : AccessibilityService() {
         return false
     }
 
+    // === TYPE OPERATIONS ===
+
     fun performTypeText(text: String): Boolean {
         val root = rootInActiveWindow ?: return false
         val focusedNode = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
@@ -165,39 +193,57 @@ class JarvisAccessibilityService : AccessibilityService() {
         return false
     }
 
-    fun clickSendButton(): Boolean {
-        val root = rootInActiveWindow ?: return false
-        val sendTexts = listOf("Send", "send", "পাঠান", "পাঠাও", "পাঠানো")
-        for (text in sendTexts) {
-            val nodes = root.findAccessibilityNodeInfosByText(text)
-            for (node in nodes) {
-                if (node.isClickable) {
-                    val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    node.recycle()
-                    if (result) return true
+    // === KEYBOARD / IME ACTIONS ===
+
+    fun pressKeyboardAction(): Boolean {
+        try {
+            for (window in windows) {
+                if (window.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
+                    val root = window.root ?: continue
+                    val actionTexts = listOf("Search", "Go", "Enter", "Done", "Send", "search", "go")
+                    for (text in actionTexts) {
+                        val nodes = root.findAccessibilityNodeInfosByText(text)
+                        for (node in nodes) {
+                            if (node.isClickable) {
+                                val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                                node.recycle()
+                                root.recycle()
+                                if (result) return true
+                            }
+                            node.recycle()
+                        }
+                    }
+                    val allKbNodes = mutableListOf<AccessibilityNodeInfo>()
+                    collectAllNodes(root, allKbNodes)
+                    for (node in allKbNodes) {
+                        val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+                        if ((desc.contains("search") || desc.contains("enter") ||
+                             desc.contains("go") || desc.contains("done") || desc.contains("send")) &&
+                            node.isClickable) {
+                            val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                            allKbNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+                            root.recycle()
+                            if (result) return true
+                        }
+                    }
+                    allKbNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+                    root.recycle()
                 }
-                node.recycle()
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "pressKeyboardAction error", e)
         }
-        val allNodes = mutableListOf<AccessibilityNodeInfo>()
-        collectAllNodes(root, allNodes)
-        for (node in allNodes) {
-            val desc = node.contentDescription?.toString()?.lowercase() ?: ""
-            if (desc.contains("send") || desc.contains("পাঠ")) {
-                if (node.isClickable) {
-                    val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
-                    if (result) return true
-                }
-            }
-        }
-        allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
         return false
     }
 
+    // === SEARCH & SEND ===
+
     fun clickSearchField(): Boolean {
         val root = rootInActiveWindow ?: return false
-        val searchTexts = listOf("Search", "search", "সার্চ", "খুঁজুন", "Search…", "Search or type URL")
+        val searchTexts = listOf(
+            "Search", "search", "Search…", "Search or type URL",
+            "সার্চ", "খুঁজুন", "Search...", "Type a message"
+        )
         for (text in searchTexts) {
             val nodes = root.findAccessibilityNodeInfosByText(text)
             for (node in nodes) {
@@ -214,6 +260,53 @@ class JarvisAccessibilityService : AccessibilityService() {
                 node.recycle()
             }
         }
+        val allNodes = mutableListOf<AccessibilityNodeInfo>()
+        collectAllNodes(root, allNodes)
+        for (node in allNodes) {
+            val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+            if (desc.contains("search") || desc.contains("সার্চ")) {
+                if (node.isClickable) {
+                    val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+                    if (result) return true
+                }
+            }
+        }
+        allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+        return false
+    }
+
+    fun clickSendButton(): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val allNodes = mutableListOf<AccessibilityNodeInfo>()
+        collectAllNodes(root, allNodes)
+        for (node in allNodes) {
+            val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+            val text = node.text?.toString()?.lowercase() ?: ""
+            if ((desc.contains("send") || desc.contains("পাঠ") ||
+                 text == "send" || text == "পাঠান") && node.isClickable) {
+                val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+                if (result) return true
+            }
+        }
+        allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+        return false
+    }
+
+    fun clickFirstClickableItem(): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val allNodes = mutableListOf<AccessibilityNodeInfo>()
+        collectAllNodes(root, allNodes)
+        for (node in allNodes) {
+            if (node.isClickable && !node.text.isNullOrBlank() &&
+                node.className?.toString() != "android.widget.EditText") {
+                val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+                return result
+            }
+        }
+        allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
         return false
     }
 
@@ -230,6 +323,8 @@ class JarvisAccessibilityService : AccessibilityService() {
         return results
     }
 
+    // === APP LAUNCH ===
+
     fun openApp(packageName: String): Boolean {
         return try {
             val intent = applicationContext.packageManager.getLaunchIntentForPackage(packageName)
@@ -238,10 +333,10 @@ class JarvisAccessibilityService : AccessibilityService() {
                 applicationContext.startActivity(intent)
                 true
             } else false
-        } catch (e: Exception) {
-            false
-        }
+        } catch (e: Exception) { false }
     }
+
+    // === SCROLL ===
 
     fun scrollDown(): Boolean {
         val root = rootInActiveWindow ?: return false
@@ -266,10 +361,14 @@ class JarvisAccessibilityService : AccessibilityService() {
         return false
     }
 
+    // === GLOBAL ACTIONS ===
+
     fun pressBack(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
     fun pressHome(): Boolean = performGlobalAction(GLOBAL_ACTION_HOME)
     fun openRecents(): Boolean = performGlobalAction(GLOBAL_ACTION_RECENTS)
     fun openNotifications(): Boolean = performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+
+    // === GESTURES ===
 
     fun tapAtPosition(x: Float, y: Float): Boolean {
         val path = Path().apply { moveTo(x, y) }
@@ -291,6 +390,7 @@ class JarvisAccessibilityService : AccessibilityService() {
     }
 
     companion object {
+        private const val TAG = "JarvisAccessibility"
         var instance: JarvisAccessibilityService? = null
             private set
         var currentScreenText: String = ""
