@@ -14,12 +14,13 @@ import java.util.concurrent.TimeUnit
 class AiBrain {
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .writeTimeout(10, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
-    private val chatHistory = mutableListOf<Pair<String, String>>() // role, content
+    private val chatHistory = mutableListOf<Pair<String, String>>()
 
     suspend fun ask(userInput: String, screenContext: String, locale: String): String {
         return withContext(Dispatchers.IO) {
@@ -31,10 +32,9 @@ class AiBrain {
                     append("उपयोगकर्ता को 'Boss' कहो। ")
                     append("तुम्हारे पास उपयोगकर्ता की मोबाइल स्क्रीन पढ़ने की पूरी क्षमता है")
                     if (screenContext.isNotBlank()) {
-                        append(" (स्क्रीन टेक्स्ट: \"${screenContext.take(500)}\")")
+                        append(" (स्क्रीन टेक्स्ट: \"${screenContext.take(300)}\")")
                     }
                     append("। कभी यह मत कहना कि 'मैं आपकी स्क्रीन नहीं देख सकता'। ")
-                    append("कभी भी 'जी Boss मैं आपके साथ हूँ' बार-बार मत बोलना। ")
                     append("हमेशा 1 से 3 वाक्यों में सीधा और सटीक उत्तर दो।")
                 }
             } else {
@@ -43,24 +43,21 @@ class AiBrain {
                     append("ব্যবহারকারীকে 'Boss' বলে সম্বোধন করবে। ")
                     append("তোমার কাছে ব্যবহারকারীর মোবাইলের স্ক্রিন দেখার ও পড়ার সম্পূর্ণ ক্ষমতা আছে")
                     if (screenContext.isNotBlank()) {
-                        append(" (বর্তমান স্ক্রিনের লেখা: \"${screenContext.take(500)}\")")
+                        append(" (বর্তমান স্ক্রিনের লেখা: \"${screenContext.take(300)}\")")
                     }
                     append("। কখনোই বলবে না 'আমি স্ক্রিন দেখতে পারি না'। ")
-                    append("অহেতুক 'জি Boss আমি আপনার সাথেই আছি' বারবার বলবে না। ")
                     append("সরাসরি, সঠিক ও সাবলীল বাংলায় ১-৩ বাক্যে উত্তর দাও। ")
                     append("ব্যবহারকারী যা বলেছে সেটা repeat করবে না।")
                 }
             }
 
-            // Build messages array
             val messages = JSONArray()
             messages.put(JSONObject().apply {
                 put("role", "system")
                 put("content", systemPrompt)
             })
 
-            // Add recent chat history (last 6 exchanges)
-            val recentHistory = chatHistory.takeLast(12)
+            val recentHistory = chatHistory.takeLast(8)
             for ((role, content) in recentHistory) {
                 messages.put(JSONObject().apply {
                     put("role", role)
@@ -73,29 +70,35 @@ class AiBrain {
                 put("content", userInput)
             })
 
-            // Try primary: Pollinations API
-            var response = tryPollinationsApi(messages)
+            var response: String? = null
 
-            // Fallback: Pollinations GET endpoint
+            // Try 1: POST to /openai (OpenAI-compatible format)
+            response = tryPollinationsOpenAI(messages)
+
+            // Try 2: POST to / (plain text response)
+            if (response == null) {
+                response = tryPollinationsPlainPost(messages)
+            }
+
+            // Try 3: GET endpoint (simplest, most reliable)
             if (response == null) {
                 response = tryPollinationsGet(systemPrompt, userInput)
             }
 
             if (response != null) {
-                // Update history
                 chatHistory.add("user" to userInput)
                 chatHistory.add("assistant" to response)
-                // Keep history manageable
-                while (chatHistory.size > 20) {
+                while (chatHistory.size > 16) {
                     chatHistory.removeAt(0)
                 }
+                response
+            } else {
+                "Boss, AI সার্ভার এখন ব্যস্ত আছে। একটু পরে আবার জিজ্ঞাসা করুন।"
             }
-
-            response ?: ""
         }
     }
 
-    private fun tryPollinationsApi(messages: JSONArray): String? {
+    private fun tryPollinationsOpenAI(messages: JSONArray): String? {
         return try {
             val body = JSONObject().apply {
                 put("model", "openai")
@@ -109,37 +112,78 @@ class AiBrain {
                 .build()
 
             val response = client.newCall(request).execute()
+            when {
+                response.isSuccessful -> {
+                    val bodyStr = response.body?.string() ?: ""
+                    try {
+                        val json = JSONObject(bodyStr)
+                        val choices = json.optJSONArray("choices")
+                        choices?.optJSONObject(0)
+                            ?.optJSONObject("message")
+                            ?.optString("content", "")
+                            ?.trim()
+                            ?.ifEmpty { null }
+                    } catch (e: Exception) {
+                        bodyStr.trim().ifEmpty { null }
+                    }
+                }
+                response.code == 402 -> {
+                    Log.w(TAG, "Pollinations rate limited (402)")
+                    null
+                }
+                else -> {
+                    Log.e(TAG, "Pollinations /openai error: ${response.code}")
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Pollinations /openai exception", e)
+            null
+        }
+    }
+
+    private fun tryPollinationsPlainPost(messages: JSONArray): String? {
+        return try {
+            val body = JSONObject().apply {
+                put("messages", messages)
+            }
+
+            val request = Request.Builder()
+                .url("https://text.pollinations.ai/")
+                .post(body.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            val response = client.newCall(request).execute()
             if (response.isSuccessful) {
-                val json = JSONObject(response.body?.string() ?: "")
-                val choices = json.optJSONArray("choices")
-                val content = choices?.optJSONObject(0)
-                    ?.optJSONObject("message")
-                    ?.optString("content", "")
-                content?.trim()?.ifEmpty { null }
+                response.body?.string()?.trim()?.ifEmpty { null }
             } else {
-                Log.e(TAG, "Pollinations API error: ${response.code}")
+                Log.e(TAG, "Pollinations POST / error: ${response.code}")
                 null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Pollinations API exception", e)
+            Log.e(TAG, "Pollinations POST / exception", e)
             null
         }
     }
 
     private fun tryPollinationsGet(systemPrompt: String, userInput: String): String? {
         return try {
-            val query = java.net.URLEncoder.encode(
-                "$systemPrompt\nপ্রশ্ন: $userInput", "UTF-8"
+            val query = java.net.URLEncoder.encode(userInput, "UTF-8")
+            val system = java.net.URLEncoder.encode(
+                systemPrompt.take(500), "UTF-8"
             )
             val request = Request.Builder()
-                .url("https://text.pollinations.ai/$query")
+                .url("https://text.pollinations.ai/$query?system=$system")
                 .get()
                 .build()
 
             val response = client.newCall(request).execute()
             if (response.isSuccessful) {
                 response.body?.string()?.trim()?.ifEmpty { null }
-            } else null
+            } else {
+                Log.e(TAG, "Pollinations GET error: ${response.code}")
+                null
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Pollinations GET exception", e)
             null

@@ -27,8 +27,9 @@ class VoiceEngine(private val context: Context) {
     private var mediaPlayer: MediaPlayer? = null
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(12, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
     init {

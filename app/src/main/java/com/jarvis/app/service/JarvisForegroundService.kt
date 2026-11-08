@@ -31,6 +31,7 @@ class JarvisForegroundService : Service() {
     private var isListening = false
     private var commandTimeoutJob: Job? = null
     private var safetyTimeoutJob: Job? = null
+    private var processingJob: Job? = null
     private lateinit var settings: SettingsManager
     private lateinit var commandProcessor: CommandProcessor
 
@@ -45,7 +46,7 @@ class JarvisForegroundService : Service() {
         when (intent?.action) {
             ACTION_START -> {
                 startForegroundNotification()
-                startWakeWordListening()
+                goToStandby()
             }
             ACTION_STOP -> {
                 stopSelf()
@@ -54,19 +55,11 @@ class JarvisForegroundService : Service() {
                 switchToCommandMode()
             }
             ACTION_STOP_LISTENING -> {
-                stopCurrentListening()
-                startWakeWordListening()
+                goToStandby()
             }
             ACTION_PROCESS_TEXT -> {
                 val text = intent.getStringExtra(EXTRA_TEXT) ?: return START_STICKY
-                scope.launch {
-                    currentListenMode = ListenMode.COMMAND
-                    currentState = JarvisState.PROCESSING
-                    stateListeners.forEach { it(currentState) }
-                    commandProcessor.process(text)
-                    delay(500)
-                    forceReturnToStandby()
-                }
+                processCommand(text)
             }
         }
         return START_STICKY
@@ -88,11 +81,16 @@ class JarvisForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        cancelAllJobs()
         stopCurrentListening()
-        commandTimeoutJob?.cancel()
-        safetyTimeoutJob?.cancel()
         scope.cancel()
         instance = null
+    }
+
+    private fun cancelAllJobs() {
+        commandTimeoutJob?.cancel()
+        safetyTimeoutJob?.cancel()
+        processingJob?.cancel()
     }
 
     private fun startForegroundNotification() {
@@ -116,8 +114,10 @@ class JarvisForegroundService : Service() {
         startForeground(NOTIFICATION_ID, notification)
     }
 
-    private fun forceReturnToStandby() {
-        safetyTimeoutJob?.cancel()
+    // === STATE TRANSITIONS ===
+
+    private fun goToStandby() {
+        cancelAllJobs()
         stopCurrentListening()
         currentListenMode = ListenMode.WAKE_WORD
         currentState = JarvisState.STANDBY
@@ -127,47 +127,59 @@ class JarvisForegroundService : Service() {
         startRecognizer()
     }
 
-    // --- Wake Word Mode (STANDBY) ---
-    private fun startWakeWordListening() {
-        safetyTimeoutJob?.cancel()
-        stopCurrentListening()
-        currentListenMode = ListenMode.WAKE_WORD
-        currentState = JarvisState.STANDBY
-        stateListeners.forEach { it(currentState) }
-        updateOverlayState("STANDBY")
-        hideOverlay()
-
-        startRecognizer()
-    }
-
-    // --- Command Mode (LISTENING) ---
     fun switchToCommandMode() {
         commandTimeoutJob?.cancel()
         safetyTimeoutJob?.cancel()
+        stopCurrentListening()
+
         currentListenMode = ListenMode.COMMAND
         currentState = JarvisState.LISTENING
         stateListeners.forEach { it(currentState) }
         updateOverlayState("LISTENING")
 
-        stopCurrentListening()
         startRecognizer()
 
         commandTimeoutJob = scope.launch {
             delay(15_000)
             if (currentState == JarvisState.LISTENING) {
-                forceReturnToStandby()
+                Log.d(TAG, "Command timeout — no speech, returning to standby")
+                goToStandby()
             }
         }
     }
 
-    private fun startSafetyTimeout() {
+    private fun processCommand(text: String) {
+        processingJob?.cancel()
+        commandTimeoutJob?.cancel()
+
+        currentState = JarvisState.PROCESSING
+        stateListeners.forEach { it(currentState) }
+        updateOverlayState("PROCESSING")
+
         safetyTimeoutJob?.cancel()
         safetyTimeoutJob = scope.launch {
-            delay(60_000)
-            Log.w(TAG, "Safety timeout — forcing return to STANDBY from $currentState")
-            forceReturnToStandby()
+            delay(45_000)
+            Log.w(TAG, "Safety timeout — cancelling stuck processing")
+            processingJob?.cancel()
+            goToStandby()
+        }
+
+        processingJob = scope.launch {
+            try {
+                commandProcessor.process(text)
+                delay(500)
+            } catch (e: Exception) {
+                Log.e(TAG, "Command processing error", e)
+            } finally {
+                safetyTimeoutJob?.cancel()
+                if (currentState != JarvisState.STANDBY) {
+                    switchToCommandMode()
+                }
+            }
         }
     }
+
+    // === SPEECH RECOGNIZER ===
 
     private fun startRecognizer() {
         if (isListening) return
@@ -203,6 +215,7 @@ class JarvisForegroundService : Service() {
                         if (currentListenMode == ListenMode.COMMAND) {
                             currentState = JarvisState.PROCESSING
                             stateListeners.forEach { it(currentState) }
+                            updateOverlayState("PROCESSING")
                         }
                     }
 
@@ -229,12 +242,8 @@ class JarvisForegroundService : Service() {
                             ListenMode.COMMAND -> {
                                 lastHeardText = text
                                 textListeners.forEach { it(text) }
-                                startSafetyTimeout()
-                                scope.launch {
-                                    commandProcessor.process(text)
-                                    delay(1000)
-                                    forceReturnToStandby()
-                                }
+                                stopCurrentListening()
+                                processCommand(text)
                             }
                         }
                     }
@@ -244,7 +253,7 @@ class JarvisForegroundService : Service() {
                         Log.e(TAG, "Recognition error=$error mode=$currentListenMode")
                         if (error != SpeechRecognizer.ERROR_CLIENT) {
                             scope.launch {
-                                delay(800)
+                                delay(500)
                                 restartCurrentMode()
                             }
                         }
@@ -291,11 +300,12 @@ class JarvisForegroundService : Service() {
                 stateListeners.forEach { it(currentState) }
                 startRecognizer()
             } else {
-                isListening = false
                 startRecognizer()
             }
         }
     }
+
+    // === WAKE WORD ===
 
     private fun containsWakeWord(lower: String): Boolean {
         return lower.contains("jarvis") || lower.contains("জার্ভিস") ||
@@ -322,12 +332,14 @@ class JarvisForegroundService : Service() {
     }
 
     fun onWakeWordDetected(command: String? = null) {
-        safetyTimeoutJob?.cancel()
+        cancelAllJobs()
+        stopCurrentListening()
+
         scope.launch(Dispatchers.Main) {
             bringToForeground()
             showOverlay()
-
             updateOverlayState("LISTENING")
+
             val expandIntent = Intent(this@JarvisForegroundService, OverlayService::class.java).apply {
                 action = OverlayService.ACTION_EXPAND
             }
@@ -338,18 +350,15 @@ class JarvisForegroundService : Service() {
 
             if (command != null && command.isNotBlank()) {
                 commandProcessor.acknowledge("জি Boss")
-                currentState = JarvisState.PROCESSING
-                stateListeners.forEach { it(currentState) }
-                startSafetyTimeout()
-                commandProcessor.process(command)
-                delay(1000)
-                forceReturnToStandby()
+                processCommand(command)
             } else {
-                commandProcessor.acknowledge("জি Boss, আমি আছি")
+                commandProcessor.acknowledge("জি Boss, আমি আছি। বলুন কী করব?")
                 switchToCommandMode()
             }
         }
     }
+
+    // === OVERLAY & UI ===
 
     private fun bringToForeground() {
         val intent = Intent(this, MainActivity::class.java).apply {
@@ -384,7 +393,7 @@ class JarvisForegroundService : Service() {
     }
 
     fun stopSpeechRecognition() {
-        forceReturnToStandby()
+        goToStandby()
     }
 
     private fun stopCurrentListening() {

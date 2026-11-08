@@ -623,17 +623,12 @@ class CommandProcessor(private val context: Context) {
     }
 
     private suspend fun handleAiQuestion(input: String) {
-        // Update overlay
-        updateOverlay("Thinking...")
+        updateOverlay("Boss এর জন্য উত্তর আনছি...")
 
         val screenContext = JarvisAccessibilityService.currentScreenText
         val response = aiBrain.ask(input, screenContext, settings.getLanguage())
 
-        if (response.isNotEmpty()) {
-            reply(response)
-        } else {
-            reply("Boss, উত্তর আনতে সমস্যা হচ্ছে। ইন্টারনেট চেক করুন।")
-        }
+        reply(response)
     }
 
     private suspend fun reply(text: String) {
@@ -641,7 +636,12 @@ class CommandProcessor(private val context: Context) {
         JarvisForegroundService.lastReplyText = text
         JarvisForegroundService.replyListeners.forEach { it(text) }
         updateOverlay(text.take(60) + if (text.length > 60) "..." else "")
-        voiceEngine.speak(text)
+
+        try {
+            voiceEngine.speak(text)
+        } catch (e: Exception) {
+            Log.e("CommandProcessor", "Voice engine error", e)
+        }
     }
 
     private fun updateOverlay(text: String) {

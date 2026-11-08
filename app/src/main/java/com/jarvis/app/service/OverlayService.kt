@@ -51,7 +51,7 @@ class OverlayService : Service() {
                 updatePulseForState(state)
             }
         }
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {
