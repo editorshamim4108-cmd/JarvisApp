@@ -325,7 +325,14 @@ class CommandProcessor(private val context: Context) {
                         reply("Boss, $cleanAppName খুলেছি → \"$query\" সার্চ করেছি। যেটা চান ট্যাপ করুন।")
                     }
                 } else {
-                    reply("Boss, $cleanAppName খুলেছি। কী প্লে করব বলুন!")
+                    updateOverlay("প্রথম ভিডিও প্লে করছি...")
+                    delay(1000)
+                    val svc = JarvisAccessibilityService.instance
+                    if (svc?.clickFirstClickableItem() == true) {
+                        reply("Boss, $cleanAppName খুলেছি → প্রথম ভিডিও প্লে করছি!")
+                    } else {
+                        reply("Boss, $cleanAppName খুলেছি। কী প্লে করব বলুন!")
+                    }
                 }
             }
             actionLower.contains("সার্চ") || actionLower.contains("search") ||
@@ -391,17 +398,28 @@ class CommandProcessor(private val context: Context) {
 
     private suspend fun handlePlayCommand(input: String, lower: String) {
         val query = extractPlayQuery(input)
+        val wantsFirst = lower.contains("প্রথম") || lower.contains("first") || lower.contains("১ম")
         val currentPkg = JarvisAccessibilityService.currentPackageName
 
         if (currentPkg == "com.google.android.youtube" || currentPkg == "com.spotify.music") {
-            if (query.isNotEmpty()) {
+            val svc = JarvisAccessibilityService.instance
+            if (wantsFirst) {
+                if (svc?.clickFirstClickableItem() == true) {
+                    reply("Boss, প্রথম ভিডিও প্লে করছি!")
+                } else {
+                    reply("Boss, প্লে করতে পারলাম না। স্ক্রিনে ভিডিও নেই।")
+                }
+            } else if (query.isNotEmpty()) {
                 performAppSearch(query)
                 delay(2000)
-                val svc = JarvisAccessibilityService.instance
                 svc?.performClickOnText(query) ?: svc?.clickFirstClickableItem()
                 reply("Boss, $query প্লে করছি!")
             } else {
-                reply("Boss, কী প্লে করব? গানের নাম বলুন।")
+                if (svc?.clickFirstClickableItem() == true) {
+                    reply("Boss, প্রথম ভিডিও প্লে করছি!")
+                } else {
+                    reply("Boss, কী প্লে করব? গানের নাম বলুন।")
+                }
             }
             return
         }
@@ -410,14 +428,19 @@ class CommandProcessor(private val context: Context) {
         tryOpenPackage("com.google.android.youtube")
         delay(3000)
 
-        if (query.isNotEmpty()) {
+        val svc = JarvisAccessibilityService.instance
+        if (wantsFirst || query.isEmpty()) {
+            delay(1000)
+            if (svc?.clickFirstClickableItem() == true) {
+                reply("Boss, YouTube খুলে প্রথম ভিডিও প্লে করছি!")
+            } else {
+                reply("Boss, YouTube খুলেছি। কী প্লে করব বলুন!")
+            }
+        } else {
             performAppSearch(query)
             delay(2000)
-            val svc = JarvisAccessibilityService.instance
             svc?.performClickOnText(query) ?: svc?.clickFirstClickableItem()
             reply("Boss, YouTube এ $query প্লে করছি!")
-        } else {
-            reply("Boss, YouTube খুলেছি। কী প্লে করব বলুন!")
         }
     }
 
@@ -454,7 +477,7 @@ class CommandProcessor(private val context: Context) {
         if (!inWhatsApp) {
             updateOverlay("WhatsApp খুলছি...")
             tryOpenPackage("com.whatsapp")
-            delay(3000)
+            delay(4500)
         }
 
         updateOverlay("$contact খুঁজছি...")
@@ -464,7 +487,16 @@ class CommandProcessor(private val context: Context) {
         }
 
         updateOverlay("সার্চ বার খুলছি...")
-        svc.clickSearchField()
+        var searchOpened = svc.clickSearchField()
+        if (!searchOpened) {
+            delay(1500)
+            searchOpened = svc.clickNewChatButton()
+            if (searchOpened) delay(1500)
+            else {
+                delay(1000)
+                searchOpened = svc.clickSearchField()
+            }
+        }
         delay(1200)
         updateOverlay("\"$contact\" টাইপ করছি...")
         svc.performTypeText(contact)
@@ -532,7 +564,16 @@ class CommandProcessor(private val context: Context) {
 
         if (contact.isNotEmpty()) {
             updateOverlay("সার্চ বার খুলছি...")
-            svc.clickSearchField()
+            var searchOpened = svc.clickSearchField()
+            if (!searchOpened) {
+                delay(1500)
+                searchOpened = svc.clickNewChatButton()
+                if (searchOpened) delay(1500)
+                else {
+                    delay(1000)
+                    svc.clickSearchField()
+                }
+            }
             delay(1200)
             updateOverlay("\"$contact\" টাইপ করছি...")
             svc.performTypeText(contact)
@@ -567,13 +608,15 @@ class CommandProcessor(private val context: Context) {
 
     private suspend fun performAppSearch(query: String) {
         val svc = JarvisAccessibilityService.instance ?: return
-        if (svc.clickSearchField()) {
-            delay(800)
-            svc.performTypeText(query)
-            delay(800)
-            svc.pressKeyboardAction()
+        var opened = svc.clickSearchField()
+        if (!opened) {
+            opened = svc.clickByContentDescription("search")
+        }
+        if (!opened) {
             delay(1500)
-        } else if (svc.clickByContentDescription("search")) {
+            opened = svc.clickSearchField() || svc.clickByContentDescription("search")
+        }
+        if (opened) {
             delay(800)
             svc.performTypeText(query)
             delay(800)

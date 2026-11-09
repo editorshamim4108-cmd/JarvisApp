@@ -35,7 +35,6 @@ class JarvisForegroundService : Service() {
     private var safetyTimeoutJob: Job? = null
     private var processingJob: Job? = null
     private var watchdogJob: Job? = null
-    private var wasMusicMuted = false
     private var wasSystemMuted = false
     private lateinit var settings: SettingsManager
     private lateinit var commandProcessor: CommandProcessor
@@ -103,6 +102,7 @@ class JarvisForegroundService : Service() {
         cancelAllJobs()
         watchdogJob?.cancel()
         stopCurrentListening()
+        unmuteRecognizerBeep()
         scope.cancel()
         instance = null
     }
@@ -143,6 +143,7 @@ class JarvisForegroundService : Service() {
         currentState = JarvisState.STANDBY
         stateListeners.forEach { it(currentState) }
         hideOverlay()
+        muteRecognizerBeep()
         startRecognizer()
         startWatchdog()
     }
@@ -151,6 +152,7 @@ class JarvisForegroundService : Service() {
         commandTimeoutJob?.cancel()
         safetyTimeoutJob?.cancel()
         stopCurrentListening()
+        unmuteRecognizerBeep()
 
         currentListenMode = ListenMode.COMMAND
         currentState = JarvisState.LISTENING
@@ -292,8 +294,13 @@ class JarvisForegroundService : Service() {
                     override fun onError(error: Int) {
                         isListening = false
                         Log.e(TAG, "Recognition error=$error mode=$currentListenMode")
+                        val delayMs = when {
+                            error == SpeechRecognizer.ERROR_CLIENT -> 1000L
+                            currentListenMode == ListenMode.WAKE_WORD -> 800L
+                            else -> 300L
+                        }
                         scope.launch {
-                            delay(if (error == SpeechRecognizer.ERROR_CLIENT) 1000 else 300)
+                            delay(delayMs)
                             restartCurrentMode()
                         }
                     }
@@ -340,20 +347,10 @@ class JarvisForegroundService : Service() {
                         putExtra("android.speech.extras.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 5000L)
                     }
                 }
-                if (currentListenMode == ListenMode.WAKE_WORD) {
-                    muteRecognizerBeep()
-                    speechRecognizer?.startListening(intent)
-                    scope.launch {
-                        delay(500)
-                        unmuteRecognizerBeep()
-                    }
-                } else {
-                    speechRecognizer?.startListening(intent)
-                }
+                speechRecognizer?.startListening(intent)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to start recognizer", e)
                 isListening = false
-                unmuteRecognizerBeep()
                 scope.launch {
                     delay(2000)
                     restartCurrentMode()
@@ -365,7 +362,7 @@ class JarvisForegroundService : Service() {
     private fun restartCurrentMode() {
         stopCurrentListening()
         scope.launch {
-            delay(200)
+            delay(if (currentListenMode == ListenMode.WAKE_WORD) 500L else 200L)
             if (currentListenMode == ListenMode.WAKE_WORD) {
                 currentState = JarvisState.STANDBY
                 stateListeners.forEach { it(currentState) }
@@ -492,18 +489,19 @@ class JarvisForegroundService : Service() {
     private fun muteRecognizerBeep() {
         try {
             val am = getSystemService(AUDIO_SERVICE) as AudioManager
-            wasMusicMuted = am.isStreamMute(AudioManager.STREAM_MUSIC)
             wasSystemMuted = am.isStreamMute(AudioManager.STREAM_SYSTEM)
-            if (!wasMusicMuted) am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
             if (!wasSystemMuted) am.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_MUTE, 0)
+            if (!am.isStreamMute(AudioManager.STREAM_NOTIFICATION)) {
+                am.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION, AudioManager.ADJUST_MUTE, 0)
+            }
         } catch (_: Exception) {}
     }
 
     private fun unmuteRecognizerBeep() {
         try {
             val am = getSystemService(AUDIO_SERVICE) as AudioManager
-            if (!wasMusicMuted) am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
             if (!wasSystemMuted) am.adjustStreamVolume(AudioManager.STREAM_SYSTEM, AudioManager.ADJUST_UNMUTE, 0)
+            am.adjustStreamVolume(AudioManager.STREAM_NOTIFICATION, AudioManager.ADJUST_UNMUTE, 0)
         } catch (_: Exception) {}
     }
 

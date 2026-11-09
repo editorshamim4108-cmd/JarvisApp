@@ -414,6 +414,23 @@ class JarvisAccessibilityService : AccessibilityService() {
         return false
     }
 
+    fun clickNewChatButton(): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val allNodes = mutableListOf<AccessibilityNodeInfo>()
+        collectAllNodes(root, allNodes)
+        val fabDescs = listOf("new chat", "নতুন চ্যাট", "new conversation", "নতুন কথোপকথন")
+        for (node in allNodes) {
+            val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+            if (fabDescs.any { desc.contains(it) } && node.isClickable) {
+                val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+                if (result) return true
+            }
+        }
+        allNodes.forEach { try { it.recycle() } catch (_: Exception) {} }
+        return false
+    }
+
     fun clickSendButton(): Boolean {
         val root = rootInActiveWindow ?: return false
         val allNodes = mutableListOf<AccessibilityNodeInfo>()
